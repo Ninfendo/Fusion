@@ -1,0 +1,13 @@
+[package]
+name = "fusion-domain"
+description = "Core domain types for Fusion: time, instruments, orders and events. No I/O; compiles to wasm32."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

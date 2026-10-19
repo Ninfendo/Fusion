@@ -1,0 +1,7 @@
+# Determinism: the same input events must give the same result on replay.
+# std's HashMap and HashSet iterate in a random order per process, so they are
+# banned in this crate. Use BTreeMap / BTreeSet, or a map with a fixed order.
+disallowed-types = [
+    { path = "std::collections::HashMap", reason = "random iteration order breaks replay; use BTreeMap" },
+    { path = "std::collections::HashSet", reason = "random iteration order breaks replay; use BTreeSet" },
+]

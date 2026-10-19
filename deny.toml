@@ -1,0 +1,39 @@
+# cargo-deny: licences, security advisories, banned crates and sources.
+# Runs in CI on every push and pull request.
+
+[graph]
+all-features = true
+
+[advisories]
+ignore = []
+
+[licenses]
+# Permissive licences only. A copyleft crate (GPL, AGPL, LGPL) needs a
+# conscious decision and an entry in `exceptions`, never a quiet allow.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.8
+# The allow list is policy, not a record of what is in use today.
+unused-allowed-license = "allow"
+exceptions = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

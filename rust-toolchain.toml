@@ -1,0 +1,6 @@
+# Upgrade on purpose: bump this, fix what breaks, commit both together.
+[toolchain]
+channel = "1.99"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
