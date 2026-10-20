@@ -25,6 +25,7 @@ allow = [
     "CC0-1.0",
     "Unicode-3.0",
     "BSL-1.0",
+    "0BSD",
 ]
 confidence-threshold = 0.8
 # The allow list is policy, not a record of what is in use today.

@@ -11,12 +11,18 @@
 //!   travel over a local pipe as JSON lines ([`encode`], [`decode`]).
 //!
 //! This crate does no I/O, so the hub is a pure state machine and every
-//! rule is testable without processes or pipes.
+//! rule is testable without processes or pipes. The launcher's decisions
+//! are here too: which connection is which window ([`Switchboard`]) and
+//! when to start a window process again ([`Supervisor`]).
 
 mod hub;
 mod local;
 mod protocol;
+mod supervisor;
+mod switchboard;
 
 pub use hub::{Address, Hub, Output, Reply};
 pub use local::{Bus, LocalBus};
 pub use protocol::{Fdc3Context, FromHub, InstrumentIds, ToHub, decode, encode};
+pub use supervisor::{AfterExit, CRASH_SPAN, Ended, MAX_CRASHES, Supervisor};
+pub use switchboard::{ConnId, Switchboard};

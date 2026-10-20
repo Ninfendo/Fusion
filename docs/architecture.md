@@ -99,6 +99,12 @@ The client is built from these blocks from the start, not later.
   code runs in the launcher and, for a single window or a browser tab, inside
   the window (`LocalBus`). A window that starts again says hello and gets
   its panels and their last contexts back.
+- **The pipe.** On desktop each window process connects to the launcher
+  over a local socket (`fusion-pipe`): a named pipe on Windows, a Unix
+  socket elsewhere. One JSON line per message, one reader thread per
+  connection, so no main loop blocks on a read. A window that loses the
+  launcher closes. The socket accepts any process of the same user; check
+  the peer's credentials before Fusion runs on a shared machine.
 - **Configurable links.** A link is a rule in the layout: from a panel, a
   context type, to one or more panels, with a mode (`all`, `round-robin`,
   `last-focused`) and an optional gesture (for example Shift+click). Colour
@@ -163,6 +169,7 @@ milestone needs it, not before.
 | Adapters | `fusion-venue-binance`, `fusion-venue-deribit`, `fusion-fix`, `fusion-persistence-pg` | Domain only, never the engine |
 | Client models (no UI library, build for wasm32) | `fusion-client-core` (presentation models, protocol client, links), `fusion-hub` (the hub between windows and its messages, no I/O), `fusion-layout` (windows, dock tree, panels, links, versioned save format), `fusion-theme` (tokens), `fusion-chart-model` (candles, studies, scales) | Domain, protocol, never server crates |
 | Client drawing (egui) | `fusion-egui-dock`, `fusion-egui-theme`, `fusion-egui-controls` (price input, grid, L2 ladder, ticket parts), `fusion-egui-charts`, `fusion-ui-egui` (panels and the panel registry) | Client models, egui |
+| Client I/O (desktop only) | `fusion-pipe` (the hub messages over a local socket: a window's bus and the launcher's server) | Client models |
 | Apps (composition roots) | `fusion-server`, `fusion-launcher`, `fusion-window`, `fusion-web` | What they wire |
 
 - Adapters implement traits from `fusion-domain` (ports and adapters), so an

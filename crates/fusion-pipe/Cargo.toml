@@ -1,0 +1,20 @@
+[package]
+name = "fusion-pipe"
+description = "The hub's messages over a local socket (a named pipe on Windows, a Unix socket elsewhere): a window's bus and the launcher's server. Desktop only."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+fusion-hub.workspace = true
+fusion-layout.workspace = true
+interprocess.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
