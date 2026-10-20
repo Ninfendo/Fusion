@@ -38,7 +38,7 @@ cargo clippy --workspace --all-targets                         # lints
 cargo fmt --all                                                # format
 cargo build --target wasm32-unknown-unknown -p fusion-domain   # browser build check
 cargo run -p fusion-window                                     # the desktop app: the dock with demo panels
-trunk serve --release apps/fusion-web/index.html              # the same app in the browser (needs Trunk)
+cd apps/fusion-web && trunk serve --release                   # the same app in the browser (needs Trunk)
 cargo run -p fusion-server                                     # the server (a stub for now)
 ```
 

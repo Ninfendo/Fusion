@@ -2,7 +2,7 @@
 //!
 //! The same `FusionApp` as the desktop app, drawn on a canvas. The layout and
 //! the theme are saved in the browser's local storage. Build and serve it
-//! with Trunk: `trunk serve apps/fusion-web/index.html`.
+//! with Trunk, from this folder: `trunk serve`.
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
@@ -28,9 +28,8 @@ fn main() {
         if let Some(loading) = document.get_element_by_id("loading") {
             match started {
                 Ok(()) => loading.remove(),
-                Err(_) => loading.set_inner_html(
-                    "<p>Fusion could not start. The browser console says why.</p>",
-                ),
+                Err(_) => loading
+                    .set_inner_html("<p>Fusion could not start. The browser console says why.</p>"),
             }
         }
     });
@@ -39,5 +38,5 @@ fn main() {
 /// On the desktop this binary only explains where it runs.
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    println!("fusion-web runs in the browser: trunk serve apps/fusion-web/index.html");
+    println!("fusion-web runs in the browser: cd apps/fusion-web && trunk serve");
 }

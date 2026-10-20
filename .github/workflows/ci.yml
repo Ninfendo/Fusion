@@ -66,14 +66,16 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: trunk
+      # Trunk must run in the app folder: it reads that folder's Cargo.toml.
       - name: Package the browser app (report its size)
+        working-directory: apps/fusion-web
         run: |
-          trunk build --release apps/fusion-web/index.html
+          trunk build --release
           {
             echo "## Browser app"
             echo "| File | Bytes |"
             echo "| --- | --- |"
-            for f in apps/fusion-web/dist/*.wasm apps/fusion-web/dist/*.js; do
+            for f in dist/*.wasm dist/*.js; do
               echo "| $(basename "$f") | $(stat -c %s "$f") |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
