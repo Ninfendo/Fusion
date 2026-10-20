@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::io;
 use std::process::{Child, Command};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use fusion_hub::Ended;
 use fusion_layout::WindowId;
@@ -48,6 +48,9 @@ impl<F: FnMut(WindowId) -> Command> ChildProcesses<F> {
     }
 }
 
+/// How often [`WindowProcesses::stop_all`] looks whether the windows ended.
+const STOP_POLL: Duration = Duration::from_millis(10);
+
 /// How a process ended, from its exit status.
 fn how(status: io::Result<Option<std::process::ExitStatus>>) -> Option<Ended> {
     match status {
@@ -81,11 +84,15 @@ impl<F: FnMut(WindowId) -> Command> WindowProcesses for ChildProcesses<F> {
     }
 
     fn stop_all(&mut self, grace: Duration) -> Vec<WindowId> {
-        let deadline = Instant::now() + grace;
-        while !self.children.is_empty() && Instant::now() < deadline {
+        // Whole rounds instead of a clock, so the waiting is exact to test.
+        let rounds = grace.as_millis() / STOP_POLL.as_millis();
+        for _ in 0..rounds {
             self.children
                 .retain(|_, child| how(child.try_wait()).is_none());
-            thread::sleep(Duration::from_millis(10));
+            if self.children.is_empty() {
+                break;
+            }
+            thread::sleep(STOP_POLL);
         }
         for child in self.children.values_mut() {
             // A process that already ended cannot be killed; both are fine.

@@ -47,7 +47,8 @@ fn helper_fails() {
 #[test]
 #[ignore = "a helper process for the tests below"]
 fn helper_sleeps() {
-    thread::sleep(Duration::from_secs(60));
+    // Short, so a broken stop does not leave it running for long.
+    thread::sleep(Duration::from_secs(1));
 }
 
 #[test]
@@ -56,6 +57,7 @@ fn a_window_that_closes_ends_clean() {
     assert!(processes.is_empty());
     processes.start(WindowId(2)).expect("starts");
     assert_eq!(processes.len(), 1);
+    assert!(!processes.is_empty());
     assert_eq!(
         wait_for_ended(&mut processes),
         [(WindowId(2), Ended::Clean)]
@@ -90,7 +92,10 @@ fn stopping_kills_what_does_not_end() {
         processes.stop_all(Duration::from_millis(50)),
         [WindowId(2), WindowId(3)]
     );
-    assert!(start.elapsed() < Duration::from_secs(30));
+    assert!(
+        start.elapsed() < Duration::from_secs(3),
+        "it waits about the grace, then kills"
+    );
     assert!(processes.is_empty());
 }
 
@@ -98,9 +103,14 @@ fn stopping_kills_what_does_not_end() {
 fn stopping_waits_for_windows_that_end() {
     let mut processes = ChildProcesses::new(helper("helper_passes"));
     processes.start(WindowId(2)).expect("starts");
+    let start = Instant::now();
     assert!(
-        processes.stop_all(Duration::from_secs(30)).is_empty(),
+        processes.stop_all(Duration::from_secs(10)).is_empty(),
         "it ended on its own, nothing was killed"
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "it stops waiting once the window ended"
     );
     assert!(processes.is_empty());
 }
