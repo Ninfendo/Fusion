@@ -1,0 +1,20 @@
+[package]
+name = "fusion-viewserver"
+description = "The view server's engine: tables keyed by row, and viewports onto them that send only the rows in range and only what changed. No I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+cel.workspace = true
+fusion-domain.workspace = true
+fusion-protocol.workspace = true
+rust_decimal.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
