@@ -3,6 +3,8 @@
 use egui::Button;
 use fusion_layout::{Gesture, Layout, Link, LinkMode, PanelId};
 
+use fusion_hub::ToHub;
+
 use super::FusionApp;
 
 /// A panel as the editor names it: its title and its id, so two panels of
@@ -72,10 +74,8 @@ impl FusionApp {
                 }
             });
         }
-        if let Some(link) = remove.and_then(|index| self.layout.remove_link(index)) {
-            self.router.links_changed();
-            self.events
-                .push(format!("Removed link: {}", describe(&self.layout, &link)));
+        if let Some(index) = remove {
+            self.remove_link(index);
         }
     }
 
@@ -138,16 +138,26 @@ impl FusionApp {
             });
     }
 
-    /// Adds a link made in the editor.
+    /// Adds a link made in the editor. The link is checked here first, so
+    /// the user hears at once if it is wrong; the hub checks it again.
     pub(super) fn add_link(&mut self, link: Link) {
         let text = describe(&self.layout, &link);
-        match self.layout.add_link(link) {
+        match self.layout.clone().add_link(link.clone()) {
             Ok(()) => {
-                self.router.links_changed();
+                self.send(ToHub::AddLink { link });
                 self.draft = Default::default();
                 self.events.push(format!("Added link: {text}"));
             }
             Err(err) => self.events.push(format!("Link refused: {err}")),
+        }
+    }
+
+    /// Removes the link at `index`.
+    pub(super) fn remove_link(&mut self, index: usize) {
+        if let Some(link) = self.layout.links.get(index) {
+            let text = describe(&self.layout, link);
+            self.send(ToHub::RemoveLink { index });
+            self.events.push(format!("Removed link: {text}"));
         }
     }
 }

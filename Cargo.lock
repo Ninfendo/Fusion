@@ -1306,6 +1306,7 @@ dependencies = [
  "fusion-client-core",
  "fusion-egui-dock",
  "fusion-egui-theme",
+ "fusion-hub",
  "fusion-layout",
  "fusion-theme",
 ]

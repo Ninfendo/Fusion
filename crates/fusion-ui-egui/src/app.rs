@@ -8,15 +8,16 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use fusion_client_core::demo::DemoMarket;
-use fusion_client_core::links::{LinkDraft, LinkRouter, linked_panels};
+use fusion_client_core::links::{LinkDraft, linked_panels};
 use fusion_egui_dock::{DockOutput, DockTree, to_node, to_tree};
+use fusion_hub::{Bus, Fdc3Context, FromHub, LocalBus, ToHub};
 use fusion_layout::{
     Child, ContextType, Direction, Layout, Link, LinkMode, Node, Panel, PanelId, WindowId,
 };
 use fusion_theme::{Mode, Theme};
 
 use crate::panels::{Events, KINDS, Outgoing, PanelView, create};
-use host::{FrameInput, Host};
+use host::{FrameInput, Host, Move};
 
 /// Where the layout is saved, as JSON.
 pub const LAYOUT_KEY: &str = "fusion.layout";
@@ -103,8 +104,17 @@ pub fn theme_from_text(text: &str) -> (Mode, bool) {
     }
 }
 
-/// The Fusion app.
+/// The Fusion app: one window of the workspace.
+///
+/// The app never changes the layout itself. It sends each change to the hub
+/// through its [`Bus`] and takes the layout the hub sends back. With a
+/// [`LocalBus`] the hub runs inside the app; with the launcher, in another
+/// process.
 pub struct FusionApp {
+    bus: Box<dyn Bus>,
+    /// The window this app shows.
+    window: WindowId,
+    /// The layout, as the hub last sent it.
     layout: Layout,
     tree: DockTree,
     views: BTreeMap<PanelId, Box<dyn PanelView>>,
@@ -114,56 +124,70 @@ pub struct FusionApp {
     market: DemoMarket,
     next_step_at: f64,
     events: Events,
-    router: LinkRouter,
     /// The panel under the pointer last frame; its linked panels get an
     /// outline.
     hovered: Option<PanelId>,
     links_open: bool,
     draft: LinkDraft,
+    /// The hub asked this window to close.
+    quit: bool,
 }
 
 impl FusionApp {
-    /// Starts the app, with the layout and theme saved last time if any.
+    /// Starts the app on its own, with the layout and theme saved last time
+    /// if any.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let saved = |key| cc.storage.and_then(|s| s.get_string(key));
         Self::from_saved(saved(LAYOUT_KEY).as_deref(), saved(THEME_KEY).as_deref())
     }
 
-    /// Starts the app from a saved layout and theme. A layout that does not
-    /// load is replaced by the default one, and the log says why.
+    /// Starts the app on its own, from a saved layout and theme. A layout
+    /// that does not load is replaced by the default one, and the log says
+    /// why.
     pub fn from_saved(layout: Option<&str>, theme: Option<&str>) -> Self {
-        let mut events = Events::default();
+        let mut notice = None;
         let layout = match layout.map(Layout::from_json) {
             Some(Ok(layout)) => layout,
             Some(Err(err)) => {
-                events.push(format!(
+                notice = Some(format!(
                     "The saved layout could not be loaded ({err}); using the default."
                 ));
                 default_layout()
             }
             None => default_layout(),
         };
+        let mut app = Self::with_bus(Box::new(LocalBus::new(layout)), WindowId::MAIN, theme);
+        if let Some(text) = notice {
+            app.events.push(text);
+        }
+        app
+    }
+
+    /// Starts the app for one window, talking to the hub through `bus`.
+    pub fn with_bus(bus: Box<dyn Bus>, window: WindowId, theme: Option<&str>) -> Self {
         let (mode, colour_blind) = theme.map_or((Mode::Dark, false), theme_from_text);
         let mut app = Self {
+            bus,
+            window,
+            layout: Layout::new("Fusion"),
             tree: DockTree::empty(dock_id()),
             views: BTreeMap::new(),
-            layout,
             mode,
             colour_blind,
             theme_dirty: true,
             market: DemoMarket::new(1),
             next_step_at: 0.0,
-            events,
-            router: LinkRouter::default(),
+            events: Events::default(),
             hovered: None,
             links_open: false,
             draft: LinkDraft::default(),
+            quit: false,
         };
-        app.rebuild();
+        app.pump();
         app
     }
 
-    /// The current layout.
+    /// The layout, as the hub last sent it.
     pub fn layout(&self) -> &Layout {
         &self.layout
     }
@@ -178,6 +202,11 @@ impl FusionApp {
         Theme::new(self.mode, self.colour_blind)
     }
 
+    /// True once the hub asked this window to close.
+    pub fn quit_requested(&self) -> bool {
+        self.quit
+    }
+
     /// Switches the theme; it is applied on the next frame.
     pub fn set_theme(&mut self, mode: Mode, colour_blind: bool) {
         if (mode, colour_blind) != (self.mode, self.colour_blind) {
@@ -187,92 +216,133 @@ impl FusionApp {
         }
     }
 
-    /// Adds a panel of `kind` to the main window.
+    /// Sends a message to the hub and takes in what comes back at once.
+    fn send(&mut self, message: ToHub) {
+        self.bus.send(message);
+        self.pump();
+    }
+
+    /// Takes in everything the hub sent.
+    fn pump(&mut self) {
+        for message in self.bus.poll() {
+            match message {
+                FromHub::Layout { layout } => self.adopt(layout),
+                FromHub::Deliver { panel, context } => {
+                    if let Some(view) = self.views.get_mut(&panel) {
+                        view.receive(&context.into(), &mut self.events);
+                    }
+                }
+                FromHub::Notice { text } => self.events.push(text),
+                FromHub::Quit => self.quit = true,
+            }
+        }
+    }
+
+    /// Takes a layout from the hub: views for this window's panels, and a
+    /// new dock tree only if this window's tree changed, so an echo of the
+    /// user's own edit does not disturb a drag. A window the layout no
+    /// longer has, for example after its last panel popped in, closes.
+    fn adopt(&mut self, layout: Layout) {
+        let old_root = self.my_root().cloned();
+        self.layout = layout;
+        if self.layout.window(self.window).is_none() {
+            self.quit = true;
+        }
+        let mine = self.layout.panels_in(self.window);
+        self.views.retain(|id, _| mine.contains(id));
+        for id in mine {
+            if let Some(panel) = self.layout.panel(id) {
+                let kind = panel.kind.clone();
+                self.views.entry(id).or_insert_with(|| create(&kind));
+            }
+        }
+        if self.my_root() != old_root.as_ref() {
+            self.tree = to_tree(dock_id(), self.my_root());
+        }
+    }
+
+    fn my_root(&self) -> Option<&Node> {
+        self.layout
+            .window(self.window)
+            .and_then(|w| w.root.as_ref())
+    }
+
+    /// Adds a panel of `kind` to this window.
     pub fn add_panel(&mut self, kind: &str) {
         let title = KINDS
             .iter()
             .find(|k| k.kind == kind)
             .map_or(kind, |k| k.title);
-        if let Ok(id) = self
-            .layout
-            .add_panel(WindowId::MAIN, Panel::new(kind, title))
-        {
-            self.views.insert(id, create(kind));
-            self.tree = to_tree(dock_id(), self.main_root());
-            self.events.push(format!("Added {title}"));
-        }
+        self.send(ToHub::AddPanel {
+            window: self.window,
+            kind: kind.to_owned(),
+            title: title.to_owned(),
+        });
+        self.events.push(format!("Added {title}"));
     }
 
     /// Goes back to the default layout.
     pub fn reset_layout(&mut self) {
-        self.layout = default_layout();
-        self.router = LinkRouter::default();
-        self.rebuild();
+        self.send(ToHub::ReplaceLayout {
+            layout: default_layout(),
+        });
         self.events.push("Layout reset");
     }
 
-    fn main_root(&self) -> Option<&Node> {
-        self.layout
-            .window(WindowId::MAIN)
-            .and_then(|w| w.root.as_ref())
-    }
-
-    /// Makes the views and the drawable tree match the layout.
-    fn rebuild(&mut self) {
-        self.views = self
-            .layout
-            .panels
-            .iter()
-            .map(|(id, panel)| (*id, create(&panel.kind)))
-            .collect();
-        self.tree = to_tree(dock_id(), self.main_root());
-    }
-
-    /// Takes the user's dock edits into the layout.
+    /// Sends the user's dock edits to the hub. The new tree is kept locally
+    /// at once, so the hub's echo matches it.
     pub fn apply_dock_output(&mut self, output: DockOutput) {
         if !output.edited {
             return;
         }
-        for id in output.closed {
-            if let Ok(panel) = self.layout.close_panel(id) {
+        let root = to_node(&self.tree);
+        if let Some(w) = self.layout.window_mut(self.window) {
+            w.root = root.clone();
+        }
+        for id in &output.closed {
+            if let Some(panel) = self.layout.panel(*id) {
                 self.events.push(format!("Closed {}", panel.title));
             }
-            self.views.remove(&id);
-            self.router.forget(id);
         }
-        let root = to_node(&self.tree);
-        if let Some(main) = self.layout.window_mut(WindowId::MAIN) {
-            main.root = root;
-        }
+        self.send(ToHub::WindowEdited {
+            window: self.window,
+            root,
+            closed: output.closed,
+        });
     }
 
     /// Takes what the user did inside the panels this frame: the hovered
-    /// panel, clicks for last-focused links, and colour group changes.
+    /// panel, clicks for last-focused links, colour groups and window moves.
     fn apply_frame(&mut self, frame: FrameInput) {
         self.hovered = frame.hovered;
         for panel in frame.pressed {
-            self.router.focused(panel);
+            self.send(ToHub::Focused { panel });
         }
         for (panel, colour) in frame.group_changes {
-            if self.layout.set_group(panel, colour).is_ok() {
-                let group = colour.map_or("no", |c| c.name());
-                self.events
-                    .push(format!("Panel {}: {group} link group", panel.0));
+            if self.layout.panel(panel).is_none() {
+                continue;
             }
+            self.send(ToHub::SetGroup { panel, colour });
+            let group = colour.map_or("no", |c| c.name());
+            self.events
+                .push(format!("Panel {}: {group} link group", panel.0));
+        }
+        for (panel, move_to) in frame.moves {
+            self.send(match move_to {
+                Move::Out => ToHub::PopOut { panel },
+                Move::In => ToHub::PopIn { panel },
+            });
         }
     }
 
-    /// Sends each selection to the panels linked to it.
+    /// Sends each selection to the hub, which passes it to linked panels.
     pub fn deliver(&mut self, outbox: Vec<Outgoing>) {
         for out in outbox {
-            let targets = self
-                .router
-                .route(&self.layout, out.from, &out.context, out.gesture);
-            for target in targets {
-                if let Some(view) = self.views.get_mut(&target) {
-                    view.receive(&out.context, &mut self.events);
-                }
-            }
+            self.send(ToHub::Select {
+                from: out.from,
+                context: Fdc3Context::from(&out.context),
+                gesture: out.gesture,
+            });
         }
     }
 
@@ -332,6 +402,8 @@ impl FusionApp {
         let mut outbox = Vec::new();
         let mut host = Host {
             layout: &self.layout,
+            window: self.window,
+            can_move: self.bus.can_open_windows(),
             views: &mut self.views,
             theme: &theme,
             market: &self.market,
@@ -358,6 +430,16 @@ impl FusionApp {
 
 impl eframe::App for FusionApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.pump();
+        if self.quit {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+        if ui.input(|i| i.viewport().close_requested()) {
+            self.send(ToHub::CloseWindow {
+                window: self.window,
+            });
+        }
         if self.theme_dirty {
             fusion_egui_theme::apply(ui.ctx(), &self.theme());
             self.theme_dirty = false;
@@ -371,7 +453,10 @@ impl eframe::App for FusionApp {
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        if let Ok(json) = self.layout.to_json() {
+        // With a launcher, the launcher keeps the layout.
+        if !self.bus.can_open_windows()
+            && let Ok(json) = self.layout.to_json()
+        {
             storage.set_string(LAYOUT_KEY, json);
         }
         storage.set_string(THEME_KEY, theme_to_text(self.mode, self.colour_blind));

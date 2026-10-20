@@ -6,7 +6,12 @@ use fusion_client_core::links::Context;
 use fusion_egui_dock::PanelHost as _;
 use fusion_layout::{ContextType, Gesture, Link, LinkColour, LinkMode};
 
-use super::host::{FrameInput, Host, group_colour, group_name, title_text};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use fusion_hub::{Hub, InstrumentIds};
+
+use super::host::{FrameInput, Host, Move, group_colour, group_name, offered_moves, title_text};
 use super::links_window;
 use crate::panels::Outgoing;
 
@@ -226,6 +231,8 @@ fn a_panel_without_a_view_draws_nothing() {
     let mut frame = FrameInput::default();
     let mut host = Host {
         layout: &app.layout,
+        window: WindowId::MAIN,
+        can_move: false,
         views: &mut app.views,
         theme: &theme,
         market: &app.market,
@@ -296,6 +303,7 @@ fn a_frame_records_hover_focus_and_group_changes() {
             (PanelId(3), Some(LinkColour::Blue)),
             (PanelId(9), Some(LinkColour::Red)),
         ],
+        moves: Vec::new(),
     });
     assert_eq!(app.hovered, Some(PanelId(1)));
     assert_eq!(
@@ -307,6 +315,7 @@ fn a_frame_records_hover_focus_and_group_changes() {
         !app.layout().groups.contains_key(&PanelId(9)),
         "unknown panel ignored"
     );
+    assert!(!has_event(&app, "Panel 9: Red link group"));
     app.apply_frame(FrameInput {
         group_changes: vec![(PanelId(3), None)],
         ..FrameInput::default()
@@ -403,11 +412,6 @@ fn a_shift_click_follows_the_shift_link_only() {
         .map(str::to_owned)
         .collect();
     assert_eq!(linked.len(), 1, "only the new L2 follows: {linked:?}");
-    assert_eq!(
-        harness.state().router.last_context(PanelId(4)),
-        Some(&Context::instrument("SOLUSDT"))
-    );
-    assert_eq!(harness.state().router.last_context(PanelId(2)), None);
 }
 
 #[test]
@@ -569,4 +573,297 @@ fn an_unknown_panel_kind_shows_a_placeholder() {
             )
             .is_some()
     );
+}
+
+// --- Hub -------------------------------------------------------------------------
+
+/// One hub shared by several windows, as the launcher will run it.
+#[derive(Clone)]
+struct SharedHub {
+    hub: Rc<RefCell<Hub>>,
+    inboxes: Rc<RefCell<BTreeMap<WindowId, Vec<FromHub>>>>,
+}
+
+impl SharedHub {
+    fn new(layout: Layout) -> Self {
+        Self {
+            hub: Rc::new(RefCell::new(Hub::new(layout))),
+            inboxes: Rc::default(),
+        }
+    }
+
+    /// A bus for one window. Like a transport that just connected, it says
+    /// hello first.
+    fn bus(&self, window: WindowId) -> Box<dyn Bus> {
+        let mut bus = HubBus {
+            shared: self.clone(),
+            window,
+        };
+        bus.send(ToHub::Hello { window });
+        Box::new(bus)
+    }
+}
+
+struct HubBus {
+    shared: SharedHub,
+    window: WindowId,
+}
+
+impl Bus for HubBus {
+    fn send(&mut self, message: ToHub) {
+        let mut hub = self.shared.hub.borrow_mut();
+        // A window that this message closes still hears about it, as it
+        // does from the launcher before its process ends.
+        let mut windows = hub.window_ids();
+        let reply = hub.handle(self.window, message);
+        windows.extend(hub.window_ids());
+        windows.sort();
+        windows.dedup();
+        let mut inboxes = self.shared.inboxes.borrow_mut();
+        for out in reply.messages {
+            for window in windows.iter().filter(|w| out.to.reaches(**w)) {
+                inboxes
+                    .entry(*window)
+                    .or_default()
+                    .push(out.message.clone());
+            }
+        }
+    }
+
+    fn poll(&mut self) -> Vec<FromHub> {
+        self.shared
+            .inboxes
+            .borrow_mut()
+            .remove(&self.window)
+            .unwrap_or_default()
+    }
+
+    fn can_open_windows(&self) -> bool {
+        true
+    }
+}
+
+/// A bus that records what the app sends and hands it scripted replies.
+#[derive(Clone, Default)]
+struct ScriptBus {
+    sent: Rc<RefCell<Vec<ToHub>>>,
+    replies: Rc<RefCell<Vec<FromHub>>>,
+}
+
+impl Bus for ScriptBus {
+    fn send(&mut self, message: ToHub) {
+        self.sent.borrow_mut().push(message);
+    }
+
+    fn poll(&mut self) -> Vec<FromHub> {
+        std::mem::take(&mut *self.replies.borrow_mut())
+    }
+
+    fn can_open_windows(&self) -> bool {
+        true
+    }
+}
+
+fn eth() -> Fdc3Context {
+    Fdc3Context::Instrument {
+        id: InstrumentIds {
+            ticker: "ETHUSDT".to_owned(),
+        },
+    }
+}
+
+fn pop_out(app: &mut FusionApp, panel: PanelId) {
+    app.apply_frame(FrameInput {
+        moves: vec![(panel, Move::Out)],
+        ..FrameInput::default()
+    });
+}
+
+#[test]
+fn a_selection_reaches_only_the_linked_panel_in_another_window() {
+    let hub = SharedHub::new(default_layout());
+    let mut main = FusionApp::with_bus(hub.bus(WindowId::MAIN), WindowId::MAIN, None);
+    main.add_panel("l2");
+    pop_out(&mut main, PanelId(2));
+    assert!(!main.views.contains_key(&PanelId(2)), "panel 2 left");
+    let window = main.layout().window_of(PanelId(2)).expect("popped out");
+    let mut other = FusionApp::with_bus(hub.bus(window), window, None);
+    assert_eq!(
+        other.views.keys().copied().collect::<Vec<_>>(),
+        [PanelId(2)]
+    );
+
+    main.deliver(vec![Outgoing {
+        from: PanelId(1),
+        context: Context::instrument("ETHUSDT"),
+        gesture: None,
+    }]);
+    other.pump();
+    assert!(has_event(&other, "L2: showing ETHUSDT (linked)"));
+    assert!(
+        !main.events().lines().any(|l| l.contains("(linked)")),
+        "the L2 in the main window is not linked"
+    );
+
+    // The other window's process dies and starts again.
+    drop(other);
+    let restarted = FusionApp::with_bus(hub.bus(window), window, None);
+    assert!(restarted.views.contains_key(&PanelId(2)));
+    assert!(has_event(&restarted, "L2: showing ETHUSDT (linked)"));
+}
+
+#[test]
+fn pop_in_brings_a_panel_back() {
+    let hub = SharedHub::new(default_layout());
+    let mut main = FusionApp::with_bus(hub.bus(WindowId::MAIN), WindowId::MAIN, None);
+    pop_out(&mut main, PanelId(3));
+    let window = main.layout().window_of(PanelId(3)).expect("popped out");
+    let mut other = FusionApp::with_bus(hub.bus(window), window, None);
+    other.apply_frame(FrameInput {
+        moves: vec![(PanelId(3), Move::In)],
+        ..FrameInput::default()
+    });
+    main.pump();
+    assert_eq!(main.layout().windows.len(), 1);
+    assert!(main.views.contains_key(&PanelId(3)));
+    assert!(other.quit_requested(), "an empty window closes");
+}
+
+#[test]
+fn headers_offer_the_moves_that_work() {
+    let mut layout = default_layout();
+    assert_eq!(
+        offered_moves(&layout, WindowId::MAIN, PanelId(1)),
+        [Move::Out]
+    );
+    let window = layout.pop_out(PanelId(2)).expect("pops out");
+    assert_eq!(offered_moves(&layout, window, PanelId(2)), [Move::In]);
+    layout.pop_in(PanelId(2)).expect("pops in");
+    let window = layout.pop_out(PanelId(2)).expect("pops out");
+    layout
+        .add_panel(window, Panel::new("log", "Log"))
+        .expect("added");
+    assert_eq!(
+        offered_moves(&layout, window, PanelId(2)),
+        [Move::Out, Move::In]
+    );
+    let mut alone = default_layout();
+    alone.pop_out(PanelId(2)).expect("pops out");
+    alone.pop_out(PanelId(3)).expect("pops out");
+    assert_eq!(
+        offered_moves(&alone, WindowId::MAIN, PanelId(1)),
+        [Move::Out],
+        "the last panel of the main window can still pop out"
+    );
+    let mut handmade = default_layout();
+    let window = handmade.pop_out(PanelId(2)).expect("pops out");
+    if let Some(panel) = handmade.panels.get_mut(&PanelId(2)) {
+        panel.origin = None;
+    }
+    assert_eq!(
+        offered_moves(&handmade, window, PanelId(2)),
+        [Move::In],
+        "a panel outside the main window can always pop in"
+    );
+    assert_eq!(Move::Out.label(), "Pop out");
+    assert_eq!(Move::In.label(), "Pop in");
+}
+
+#[test]
+fn the_app_takes_what_the_hub_sends() {
+    let bus = ScriptBus::default();
+    let mut app = FusionApp::with_bus(Box::new(bus.clone()), WindowId::MAIN, None);
+    bus.replies.borrow_mut().extend([
+        FromHub::Layout {
+            layout: default_layout(),
+        },
+        FromHub::Deliver {
+            panel: PanelId(9),
+            context: eth(),
+        },
+        FromHub::Deliver {
+            panel: PanelId(2),
+            context: eth(),
+        },
+        FromHub::Notice {
+            text: "Refused: hello".to_owned(),
+        },
+    ]);
+    app.pump();
+    assert_eq!(app.views.len(), 3);
+    assert!(has_event(&app, "L2: showing ETHUSDT (linked)"));
+    assert!(has_event(&app, "Refused: hello"));
+    assert!(!app.quit_requested());
+}
+
+#[test]
+fn an_echo_of_the_users_edit_keeps_the_dock() {
+    let hub = SharedHub::new(default_layout());
+    let mut app = FusionApp::with_bus(hub.bus(WindowId::MAIN), WindowId::MAIN, None);
+    let tree_before = app.tree.clone();
+    let layout = app.layout().clone();
+    app.adopt(layout);
+    assert_eq!(app.tree, tree_before);
+}
+
+#[test]
+fn panel_headers_pop_out_when_the_hub_can_open_windows() {
+    let hub = SharedHub::new(default_layout());
+    let mut harness =
+        Harness::new_eframe(|_| FusionApp::with_bus(hub.bus(WindowId::MAIN), WindowId::MAIN, None));
+    harness.run_steps(3);
+    harness
+        .get_all_by_label("Pop out")
+        .next()
+        .expect("a pop out button")
+        .click();
+    harness.run_steps(3);
+    assert_eq!(harness.state().layout().windows.len(), 2);
+}
+
+#[test]
+fn a_lone_window_has_no_pop_out_buttons() {
+    let harness = harness();
+    assert!(harness.query_by_label("Pop out").is_none());
+}
+
+#[test]
+fn closing_the_window_tells_the_hub() {
+    let bus = ScriptBus::default();
+    let sent = Rc::clone(&bus.sent);
+    let mut harness =
+        Harness::new_eframe(|_| FusionApp::with_bus(Box::new(bus.clone()), WindowId(2), None));
+    harness.run();
+    harness
+        .input_mut()
+        .viewports
+        .entry(egui::ViewportId::ROOT)
+        .or_default()
+        .events
+        .push(egui::ViewportEvent::Close);
+    harness.run();
+    assert!(sent.borrow().contains(&ToHub::CloseWindow {
+        window: WindowId(2)
+    }));
+}
+
+#[test]
+fn a_quit_from_the_hub_stops_drawing() {
+    let bus = ScriptBus::default();
+    bus.replies.borrow_mut().push(FromHub::Quit);
+    let mut harness =
+        Harness::new_eframe(|_| FusionApp::with_bus(Box::new(bus.clone()), WindowId(2), None));
+    harness.run_steps(2);
+    assert!(harness.state().quit_requested());
+    assert!(harness.query_by_label("Panels").is_none());
+}
+
+#[test]
+fn a_launched_window_leaves_the_layout_to_the_launcher() {
+    let hub = SharedHub::new(default_layout());
+    let mut app = FusionApp::with_bus(hub.bus(WindowId::MAIN), WindowId::MAIN, None);
+    let mut storage = MemoryStorage::default();
+    eframe::App::save(&mut app, &mut storage);
+    assert_eq!(storage.get_string(LAYOUT_KEY), None);
+    assert!(storage.get_string(THEME_KEY).is_some());
 }

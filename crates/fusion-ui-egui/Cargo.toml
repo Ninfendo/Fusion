@@ -13,6 +13,7 @@ publish.workspace = true
 eframe.workspace = true
 egui.workspace = true
 fusion-client-core.workspace = true
+fusion-hub.workspace = true
 fusion-egui-dock.workspace = true
 fusion-egui-theme.workspace = true
 fusion-layout.workspace = true
