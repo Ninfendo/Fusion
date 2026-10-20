@@ -11,6 +11,8 @@ publish.workspace = true
 
 [dependencies]
 eframe.workspace = true
+fusion-layout.workspace = true
+fusion-pipe.workspace = true
 fusion-ui-egui.workspace = true
 
 [lints]

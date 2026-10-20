@@ -1,0 +1,22 @@
+[package]
+name = "fusion-launch"
+description = "The launcher's logic: runs the hub over pipes, starts one process per window, restarts a crashed window, saves the layout. Desktop only."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+fusion-hub.workspace = true
+fusion-layout.workspace = true
+fusion-pipe.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+fusion-client-core.workspace = true
+interprocess.workspace = true

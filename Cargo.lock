@@ -1286,6 +1286,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "fusion-launch"
+version = "0.0.1"
+dependencies = [
+ "fusion-client-core",
+ "fusion-hub",
+ "fusion-layout",
+ "fusion-pipe",
+ "interprocess",
+]
+
+[[package]]
+name = "fusion-launcher"
+version = "0.0.1"
+dependencies = [
+ "fusion-client-core",
+ "fusion-launch",
+ "fusion-pipe",
+]
+
+[[package]]
 name = "fusion-layout"
 version = "0.0.1"
 dependencies = [
@@ -1343,6 +1363,8 @@ name = "fusion-window"
 version = "0.0.1"
 dependencies = [
  "eframe",
+ "fusion-layout",
+ "fusion-pipe",
  "fusion-ui-egui",
 ]
 
