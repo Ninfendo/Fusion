@@ -61,7 +61,7 @@ pub fn title_text(title: &str, colour: Option<LinkColour>) -> WidgetText {
     job.into()
 }
 
-fn group_name(colour: Option<LinkColour>) -> &'static str {
+pub(super) fn group_name(colour: Option<LinkColour>) -> &'static str {
     colour.map_or("None", LinkColour::name)
 }
 

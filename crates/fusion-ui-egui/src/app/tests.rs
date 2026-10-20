@@ -6,7 +6,7 @@ use fusion_client_core::links::Context;
 use fusion_egui_dock::PanelHost as _;
 use fusion_layout::{ContextType, Gesture, Link, LinkColour, LinkMode};
 
-use super::host::{FrameInput, Host, group_colour, title_text};
+use super::host::{FrameInput, Host, group_colour, group_name, title_text};
 use super::links_window;
 use crate::panels::Outgoing;
 
@@ -243,6 +243,22 @@ fn a_panel_without_a_view_draws_nothing() {
 // --- Links ------------------------------------------------------------------------
 
 #[test]
+fn a_grouped_title_colours_only_the_group_name() {
+    let egui::WidgetText::LayoutJob(job) = title_text("L2", Some(LinkColour::Blue)) else {
+        panic!("a grouped title is a layout job");
+    };
+    assert_eq!(job.sections.len(), 2);
+    assert_eq!(job.sections[0].format.color, egui::Color32::PLACEHOLDER);
+    assert_eq!(job.sections[1].format.color, group_colour(LinkColour::Blue));
+}
+
+#[test]
+fn the_group_picker_names_the_group() {
+    assert_eq!(group_name(None), "None");
+    assert_eq!(group_name(Some(LinkColour::Yellow)), "Yellow");
+}
+
+#[test]
 fn titles_carry_the_group_colour() {
     assert_eq!(title_text("L2", None).text(), "L2");
     assert_eq!(title_text("L2", Some(LinkColour::Red)).text(), "L2 [Red]");
@@ -418,11 +434,21 @@ fn the_links_editor_adds_and_removes_links() {
     harness.run_steps(2);
     harness.get_by_label("Log (3)").click();
     harness.run_steps(2);
+    harness.get_by_label("Mode").click();
+    harness.run_steps(2);
+    harness.get_by_label("Round-robin").click();
+    harness.run_steps(2);
+    harness.get_by_label("Gesture").click();
+    harness.run_steps(2);
+    harness.get_by_label("Alt+click").click();
+    harness.run_steps(2);
     harness.get_by_label("Add link").click();
     harness.run_steps(3);
     let links = &harness.state().layout().links;
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].to, [PanelId(3)]);
+    assert_eq!(links[0].mode, LinkMode::RoundRobin);
+    assert_eq!(links[0].gesture, Some(Gesture::Alt));
 }
 
 #[test]
