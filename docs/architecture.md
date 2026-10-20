@@ -44,7 +44,7 @@ exchange, and nothing else changes.
 
 | Layer | Pick | Why |
 | --- | --- | --- |
-| UI | egui, for desktop and browser from one code base | Mature on the web, fast with ticking data, simple runtime layouts. gpui-kit has better desktop components but its web build is "showcase only". A one-week side-by-side test confirms the pick at the start of milestone 2. |
+| UI | egui, for desktop and browser from one code base | Mature on the web, fast with ticking data, simple runtime layouts. gpui-kit has better desktop components but its web build is "showcase only". Chosen on 2026-10-20; the dock is drawn with `egui_tiles`. |
 | View server | Custom Rust, using the FINOS Vuu model | No open-source Rust view server exists. This is the core of the product. |
 | Wire protocol | WebSocket with Protobuf (prost), checked by `buf breaking` | Independent of the UI library. |
 | Expressions | CEL (`cel` crate) | One safe language for filters, computed columns and rules. |
@@ -83,7 +83,7 @@ The client is built from these blocks from the start, not later.
   theme tokens. It has no UI library and no async runtime in it, so a second
   UI library can reuse it unchanged.
 - **Desktop and browser:** the same UI crate builds natively and for wasm32.
-  The browser build runs in CI from milestone 2.
+  The browser build runs in CI from milestone 1.
 - **One process per window.** A launcher starts one process per window and
   restarts a window that crashes. In the browser each tab is already a
   separate process, so both work the same way.
@@ -242,14 +242,19 @@ gate of the one before it passes.
 
 | Milestone | Builds | Gate: done when |
 | --- | --- | --- |
-| M0 Skeleton | Workspace, CI, domain types, Clock, event journal, order state machine | State machine tests pass for every FIX status change |
-| M1 Market data | Binance testnet WebSocket in, normalised trades, prices and books, Parquet recording | 24 hours with no gaps; replay rebuilds the same books |
-| M2 View server and first screen | Viewports, conflation, the Protobuf protocol, `client-core`, a price grid on desktop and in the browser | 500 instruments at full tick rate; the UI keeps 60 frames a second |
-| M3 Client building blocks | Launcher, one process per window, local hub, configurable links, pop out and pop in, layout saved in PostgreSQL | A watchlist click moves only the linked L2 panel in another window; a killed window comes back with its panels |
-| M4 Orders over FIX | FIX session to the testnet, order ticket, blotter, risk checks, kill switch, order events in PostgreSQL | Place, replace and cancel work; a restart mid-order recovers state |
-| M5 Rules scanner | Features, CEL conditions, alerts table and panel | A volume-spike rule fires correctly on recorded data |
-| M6 Algos and backtest | TWAP, POV, iceberg; simulated venue on recordings | Backtest and testnet make the same decisions on the same events |
-| M7 Small real money | Live with small limits, on a venue that serves Sweden | Two weeks live with no manual fixes |
+| M0 Skeleton (done) | Workspace, CI, domain types, Clock, event journal, order state machine | State machine tests pass for every FIX status change |
+| M1 Dock shell | `fusion-layout`, `fusion-theme`, `fusion-egui-theme`, `fusion-egui-dock`, demo panels on fake data, the desktop app and the browser app | Drag, split, resize and close tabs; the layout is saved and restored; light and dark theme; the same app runs on the desktop and in Chrome |
+| M2 Client building blocks | Launcher, one process per window, local hub, configurable links, pop out and pop in | A watchlist click moves only the linked L2 panel in another window; a killed window comes back with its panels |
+| M3 Market data | Binance testnet WebSocket in, normalised trades, prices and books, Parquet recording | 24 hours with no gaps; replay rebuilds the same books |
+| M4 View server and live screens | Viewports, conflation, the Protobuf protocol; the panels switch from fake data to the view server; layouts saved in PostgreSQL | 500 instruments at full tick rate; the UI keeps 60 frames a second |
+| M5 Orders over FIX | FIX session to the testnet, order ticket, blotter, risk checks, kill switch, order events in PostgreSQL | Place, replace and cancel work; a restart mid-order recovers state |
+| M6 Rules scanner | Features, CEL conditions, alerts table and panel | A volume-spike rule fires correctly on recorded data |
+| M7 Algos and backtest | TWAP, POV, iceberg; simulated venue on recordings | Backtest and testnet make the same decisions on the same events |
+| M8 Small real money | Live with small limits, on a venue that serves Sweden | Two weeks live with no manual fixes |
+
+The client comes first (M1 and M2) because the dock, the windows and the
+links are the base every later screen stands on, and they need no market
+data: demo panels on fake data are enough to build and test them.
 
 ## Later, for a product
 
