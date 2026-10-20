@@ -177,3 +177,18 @@ fn a_stopped_server_frees_its_name() {
     drop(server);
     assert!(HubServer::listen(&name).is_ok(), "the name is free again");
 }
+
+#[test]
+fn each_window_has_its_own_connection() {
+    let name = name("two");
+    let mut server = HubServer::listen(&name).expect("listens");
+    let mut first = PipeBus::connect(&name, WindowId(1), || {}).expect("connects");
+    let first_conn = hello_from(&mut server, WindowId(1));
+    let mut second = PipeBus::connect(&name, WindowId(2), || {}).expect("connects");
+    let second_conn = hello_from(&mut server, WindowId(2));
+    assert_ne!(first_conn, second_conn);
+
+    server.send(&[second_conn], &FromHub::Quit);
+    assert_eq!(messages(&mut second), [FromHub::Quit]);
+    assert!(first.poll().is_empty(), "the first window got nothing");
+}
