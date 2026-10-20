@@ -1,3 +1,8 @@
 # Apps are composition roots with no logic of their own; integration tests
 # cover their wiring. Mutation testing targets the library crates.
 exclude_globs = ["apps/**"]
+
+# Tests that wait for a pipe message fail after a few seconds when a mutant
+# breaks the pipe. On a slow runner several such tests can add up past the
+# automatic limit, which reports a timeout instead of a caught mutant.
+minimum_test_timeout = 60

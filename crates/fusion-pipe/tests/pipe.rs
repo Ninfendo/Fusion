@@ -11,7 +11,9 @@ use fusion_layout::{PanelId, WindowId};
 use fusion_pipe::{HubServer, PipeBus, PipeEvent};
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, Stream, prelude::*};
 
-const WAIT: Duration = Duration::from_secs(10);
+/// Real messages arrive in milliseconds. A short wait keeps a broken build
+/// failing fast instead of timing out.
+const WAIT: Duration = Duration::from_secs(3);
 
 /// A socket name no other test or test run uses.
 fn name(test: &str) -> String {
