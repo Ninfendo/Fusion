@@ -5,7 +5,8 @@ view server, market and reference data, order routing over FIX, a rules
 scanner and algorithmic trading, with one UI that runs both as a desktop app
 and in the browser.
 
-> **Status: milestone 0.** The workspace and CI are in place. Nothing here can
+> **Status: milestone 0 is done** (domain types, event journal, FIX order
+> state machine). Milestone 1, market data, is next. Nothing here can
 > trade yet. Do not point it at an account with real money.
 
 ## The idea
