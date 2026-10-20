@@ -1,0 +1,174 @@
+// The protocol between Fusion's view server and its clients.
+//
+// One WebSocket connection per client. Every WebSocket message is one
+// binary frame holding one ClientMessage (client to server) or one
+// ServerMessage (server to client).
+//
+// A client opens viewports: a window onto one table, with columns, a sort,
+// a filter and a row range. The server sends a Snapshot of the rows in
+// range, then Deltas: only what changed, at most `rate_hz` times a second.
+// Each viewport numbers its messages; a client that misses one asks again
+// by changing the viewport, and gets a new Snapshot.
+//
+// Rules for changing this file (checked by `buf breaking` in CI): never
+// reuse or renumber a field, never change a field's type; add new fields
+// and messages instead.
+
+syntax = "proto3";
+
+package fusion.v1;
+
+// An exact decimal: mantissa * 10^-scale.
+message Decimal {
+  sint64 mantissa = 1;
+  uint32 scale = 2;
+}
+
+// One cell. An unset value is an empty cell.
+message Value {
+  oneof kind {
+    string text = 1;
+    sint64 integer = 2;
+    Decimal decimal = 3;
+    double real = 4;
+    bool flag = 5;
+    // Nanoseconds since the Unix epoch, UTC.
+    sint64 time = 6;
+  }
+}
+
+// One sort key.
+message Sort {
+  string column = 1;
+  bool descending = 2;
+}
+
+// What a viewport shows.
+message ViewportSpec {
+  // The table, for example "prices".
+  string table = 1;
+  // The columns, in order. Empty means every column.
+  repeated string columns = 2;
+  // Sort keys, most significant first. Empty means by row key.
+  repeated Sort sort = 3;
+  // A CEL condition on the row's columns, for example
+  // `symbol.startsWith("BTC") && volume > 10`. Empty means every row.
+  string filter = 4;
+  // The first row to send, counted from 0 after filter and sort.
+  uint32 offset = 5;
+  // How many rows to send at most. 0 means the server's maximum.
+  uint32 limit = 6;
+  // How often to send changes. 0 means the server's default (20).
+  uint32 rate_hz = 7;
+}
+
+// ---------------------------------------------------------------------------
+// Client to server
+
+message ClientMessage {
+  // The client's number for this request, echoed in the Ack or Error.
+  uint64 request = 1;
+  oneof body {
+    CreateViewport create_viewport = 2;
+    ChangeViewport change_viewport = 3;
+    RemoveViewport remove_viewport = 4;
+    SaveLayout save_layout = 5;
+    LoadLayout load_layout = 6;
+  }
+}
+
+message CreateViewport {
+  // The client's number for the viewport.
+  uint32 viewport = 1;
+  ViewportSpec spec = 2;
+}
+
+// Replaces what a viewport shows; the server answers with a Snapshot.
+message ChangeViewport {
+  uint32 viewport = 1;
+  ViewportSpec spec = 2;
+}
+
+message RemoveViewport {
+  uint32 viewport = 1;
+}
+
+message SaveLayout {
+  string name = 1;
+  // The layout, as fusion-layout's JSON.
+  string json = 2;
+}
+
+message LoadLayout {
+  string name = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Server to client
+
+message ServerMessage {
+  oneof body {
+    Snapshot snapshot = 1;
+    Delta delta = 2;
+    Ack ack = 3;
+    Error error = 4;
+  }
+}
+
+// One row: its key, and its cells in the viewport's column order.
+message Row {
+  string key = 1;
+  repeated Value cells = 2;
+}
+
+// Every row in a viewport's range.
+message Snapshot {
+  uint32 viewport = 1;
+  // Numbers this viewport's messages, from 1.
+  uint64 seq = 2;
+  // The columns of every row, in order.
+  repeated string columns = 3;
+  // Rows that pass the filter, in and out of range.
+  uint32 total_rows = 4;
+  // The rows in range, in display order.
+  repeated Row rows = 5;
+}
+
+// Changed cells of one row.
+message RowUpdate {
+  string key = 1;
+  // Column positions and their new values, pairwise.
+  repeated uint32 columns = 2;
+  repeated Value values = 3;
+}
+
+// What changed in a viewport since its last message.
+message Delta {
+  uint32 viewport = 1;
+  uint64 seq = 2;
+  uint32 total_rows = 3;
+  // Rows that came into range: every cell.
+  repeated Row added = 4;
+  // Rows in range with changed cells.
+  repeated RowUpdate updated = 5;
+  // Keys of rows that left the range.
+  repeated string removed = 6;
+  // The keys in range in display order, if the order changed. Empty when
+  // the order is the same as before.
+  repeated string order = 7;
+}
+
+message Ack {
+  uint64 request = 1;
+  oneof result {
+    // The layout asked for by LoadLayout.
+    string layout_json = 2;
+  }
+}
+
+message Error {
+  uint64 request = 1;
+  // The viewport the error is about, or 0.
+  uint32 viewport = 2;
+  string message = 3;
+}

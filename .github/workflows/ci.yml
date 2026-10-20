@@ -60,7 +60,7 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       # Every crate the browser client will use must build for wasm32.
-      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout -p fusion-theme -p fusion-client-core -p fusion-hub -p fusion-ui-egui -p fusion-web
+      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout -p fusion-theme -p fusion-client-core -p fusion-hub -p fusion-protocol -p fusion-ui-egui -p fusion-web
       - name: Lint the browser build
         run: cargo clippy --locked --target wasm32-unknown-unknown -p fusion-web
       - uses: taiki-e/install-action@v2
@@ -158,6 +158,22 @@ jobs:
           tool: cargo-machete
       - run: cargo machete
       - uses: crate-ci/typos@v1.51.1
+      # The protocol: buf's style rules, and no change that would break a
+      # client already in use (checked against main).
+      - uses: bufbuild/buf-action@v1
+        with:
+          version: 1.73.0
+          setup_only: true
+      - name: Check the protocol with buf
+        working-directory: crates/fusion-protocol/proto
+        run: |
+          buf lint
+          git fetch --no-tags --depth=1 origin main:buf-main
+          if git cat-file -e buf-main:crates/fusion-protocol/proto/buf.yaml 2>/dev/null; then
+            buf breaking --against "../../../.git#branch=buf-main,subdir=crates/fusion-protocol/proto"
+          else
+            echo "main has no protocol yet: nothing to break"
+          fi
 
   mutants:
     name: Mutation testing (changed code)
