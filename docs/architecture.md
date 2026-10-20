@@ -155,12 +155,17 @@ milestone needs it, not before.
 | Domain (no I/O, builds for wasm32) | `fusion-domain` (types, orders, journal, port traits such as `Clock` and `ExecutionClient`), `fusion-protocol` (wire messages) | Nothing of ours |
 | Server core | `fusion-engine` (orders, risk, algos), `fusion-viewserver`, `fusion-rules`, `fusion-sim` | Domain, protocol |
 | Adapters | `fusion-venue-binance`, `fusion-venue-deribit`, `fusion-fix`, `fusion-persistence-pg` | Domain only, never the engine |
-| Client | `fusion-client-core`, `fusion-ui-egui` | Domain, protocol, never server crates |
+| Client models (no UI library, build for wasm32) | `fusion-client-core` (presentation models, protocol client, links, hub), `fusion-layout` (windows, dock tree, panels, links, versioned save format), `fusion-theme` (tokens), `fusion-chart-model` (candles, studies, scales) | Domain, protocol, never server crates |
+| Client drawing (egui) | `fusion-egui-dock`, `fusion-egui-theme`, `fusion-egui-controls` (price input, grid, L2 ladder, ticket parts), `fusion-egui-charts`, `fusion-ui-egui` (panels and the panel registry) | Client models, egui |
 | Apps (composition roots) | `fusion-server`, `fusion-launcher`, `fusion-window`, `fusion-web` | What they wire |
 
 - Adapters implement traits from `fusion-domain` (ports and adapters), so an
   adapter never depends on the engine.
 - The client and the server share only the domain and the protocol.
+- Every UI area is split into a **model** crate with no UI library and a
+  **drawing** crate for egui. A change of UI library rewrites only the
+  drawing crates. All egui crates use the one egui version pinned in the
+  workspace.
 - Code with its own life lives in its own repo: the HotFIX fork is
   `Ninfendo/hotfix`, used as a git dependency until upstream takes the change.
 - Release builds use fat LTO and one codegen unit, so the crate boundaries
