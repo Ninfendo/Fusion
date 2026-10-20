@@ -2,7 +2,7 @@
 
 A runtime-configurable trading platform in Rust: view server, market data,
 FIX order routing, rules scanner and algos, with a UI for desktop and browser.
-Public repo: https://github.com/Ninfendo/fusion. Design and build order:
+Public repo: https://github.com/Ninfendo/Fusion. Design and build order:
 [docs/architecture.md](docs/architecture.md). Read it before any design work.
 
 ## Commands
