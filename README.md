@@ -6,7 +6,7 @@ scanner and algorithmic trading, with one UI that runs both as a desktop app
 and in the browser.
 
 > **Status: milestone 0 is done** (domain types, event journal, FIX order
-> state machine). Milestone 1, market data, is next. Nothing here can
+> state machine). Milestone 1, the dock shell, is next. Nothing here can
 > trade yet. Do not point it at an account with real money.
 
 ## The idea
