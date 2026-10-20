@@ -1,0 +1,3 @@
+# Apps are composition roots with no logic of their own; integration tests
+# cover their wiring. Mutation testing targets the library crates.
+exclude_globs = ["apps/**"]

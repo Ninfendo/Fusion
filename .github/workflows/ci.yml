@@ -71,3 +71,84 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check all
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --workspace --no-deps --locked
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install && rustup component add llvm-tools-preview
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+      # The floor only goes up. Binaries are thin composition roots and are
+      # left out; everything with logic lives in a library crate.
+      - name: Measure line coverage (floor 95%)
+        run: >
+          cargo llvm-cov --workspace --exclude fusion-server --locked
+          --summary-only --show-missing-lines --fail-under-lines 95
+          | tee coverage.txt
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo '## Coverage'
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  hygiene:
+    name: Unused dependencies and spelling
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete
+      - run: cargo machete
+      - uses: crate-ci/typos@v1.51.1
+
+  mutants:
+    name: Mutation testing (changed code)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # A mutant that does not compile cleanly is skipped, not a failure.
+      RUSTFLAGS: ""
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: rustup toolchain install
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - uses: Swatinem/rust-cache@v2
+      - name: Mutate only the lines this pull request changes
+        run: |
+          git diff "origin/${{ github.base_ref }}...HEAD" > pr.diff
+          cargo mutants --in-diff pr.diff --no-shuffle --timeout-multiplier 3
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants.out
+          path: mutants.out
+          if-no-files-found: ignore

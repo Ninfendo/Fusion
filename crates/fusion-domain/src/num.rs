@@ -120,4 +120,11 @@ mod tests {
         assert!("-1".parse::<Price>().expect("valid").value() < Decimal::ZERO);
         assert!("2".parse::<Price>().expect("valid").is_positive());
     }
+
+    #[test]
+    fn wraps_a_decimal() {
+        let price = Price::new(Decimal::new(12_345, 2));
+        assert_eq!(price.to_string(), "123.45");
+        assert_eq!(price.value(), Decimal::new(12_345, 2));
+    }
 }

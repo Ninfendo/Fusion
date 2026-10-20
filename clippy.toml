@@ -1,0 +1,22 @@
+# One clippy config for the whole workspace. Clippy reads the nearest
+# clippy.toml, so do not add one inside a crate: it would replace this file.
+
+# --- Complexity limits (CI fails above these) ---
+cognitive-complexity-threshold = 15
+too-many-lines-threshold = 80
+too-many-arguments-threshold = 6
+excessive-nesting-threshold = 5
+
+# Tests may unwrap and expect: a panic there is a failed test.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+
+# --- Determinism ---
+# The same input events must give the same result on replay. std's HashMap
+# and HashSet iterate in a random order per process, so they are banned by
+# default. A crate that needs one (and never iterates it on a replayed path)
+# may allow it at its crate root, with the reason in a comment.
+disallowed-types = [
+    { path = "std::collections::HashMap", reason = "random iteration order breaks replay; use BTreeMap or IndexMap" },
+    { path = "std::collections::HashSet", reason = "random iteration order breaks replay; use BTreeSet or IndexSet" },
+]
