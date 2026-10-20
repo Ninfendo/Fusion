@@ -1,0 +1,21 @@
+[package]
+name = "fusion-egui-dock"
+description = "Draws a Fusion dock tree with egui_tiles, and turns the user's edits back into the layout model."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+egui.workspace = true
+egui_tiles.workspace = true
+fusion-layout.workspace = true
+
+[dev-dependencies]
+egui_kittest.workspace = true
+
+[lints]
+workspace = true
