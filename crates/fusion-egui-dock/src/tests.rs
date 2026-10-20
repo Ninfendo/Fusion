@@ -131,8 +131,8 @@ struct FakeHost {
 }
 
 impl PanelHost for FakeHost {
-    fn title(&self, id: PanelId) -> String {
-        format!("Panel {}", id.0)
+    fn title(&self, id: PanelId) -> egui::WidgetText {
+        format!("Panel {}", id.0).into()
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, id: PanelId) {

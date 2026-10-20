@@ -114,7 +114,7 @@ fn node_of(tiles: &Tiles<PanelId>, id: TileId) -> Option<Node> {
 /// What the dock needs from the app to draw the panels.
 pub trait PanelHost {
     /// The title on a panel's tab.
-    fn title(&self, id: PanelId) -> String;
+    fn title(&self, id: PanelId) -> egui::WidgetText;
     /// Draws a panel's content.
     fn ui(&mut self, ui: &mut egui::Ui, id: PanelId);
 }
@@ -150,7 +150,7 @@ impl Behavior<PanelId> for DockBehavior<'_> {
     }
 
     fn tab_title_for_pane(&mut self, pane: &PanelId) -> egui::WidgetText {
-        self.host.title(*pane).into()
+        self.host.title(*pane)
     }
 
     fn is_tab_closable(&self, tiles: &Tiles<PanelId>, tile_id: TileId) -> bool {

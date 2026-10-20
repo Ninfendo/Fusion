@@ -25,7 +25,7 @@ fusion-ui-egui = { path = "crates/fusion-ui-egui" }
 egui = "0.37.0"
 eframe = { version = "0.37.0", features = ["persistence"] }
 egui_tiles = "0.18.0"
-egui_kittest = { version = "0.37.0", features = ["eframe"] }
+egui_kittest = "0.37.0"
 wasm-bindgen-futures = "0.4.79"
 web-sys = "0.3.106"
 

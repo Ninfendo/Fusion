@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use fusion_layout::{ContextType, Gesture, Layout, LinkMode, PanelId};
+use fusion_layout::{ContextType, Gesture, Layout, Link, LinkMode, PanelId};
 
 /// What a selection is about, shaped like an FDC3 context.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +129,66 @@ impl LinkRouter {
                 .into_iter()
                 .collect(),
         }
+    }
+}
+
+/// Every panel that `from` can send to, by any link or its colour group.
+/// The dock outlines these while the pointer is over `from`.
+pub fn linked_panels(layout: &Layout, from: PanelId) -> Vec<PanelId> {
+    let mut panels: Vec<PanelId> = layout
+        .links
+        .iter()
+        .filter(|link| link.from == from)
+        .flat_map(|link| link.to.iter().copied())
+        .collect();
+    if let Some(colour) = layout.groups.get(&from) {
+        panels.extend(
+            layout
+                .groups
+                .iter()
+                .filter(|(panel, c)| *c == colour && **panel != from)
+                .map(|(panel, _)| *panel),
+        );
+    }
+    panels.sort();
+    panels.dedup();
+    panels
+}
+
+/// A link being put together in the links editor.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LinkDraft {
+    /// The panel the selection is made in.
+    pub from: Option<PanelId>,
+    /// The panels that may follow.
+    pub to: Vec<PanelId>,
+    /// Which of them follow.
+    pub mode: LinkMode,
+    /// The modifier key the link needs, if any.
+    pub gesture: Option<Gesture>,
+}
+
+impl LinkDraft {
+    /// Adds or removes a target.
+    pub fn toggle_target(&mut self, panel: PanelId) {
+        if let Some(at) = self.to.iter().position(|p| *p == panel) {
+            self.to.remove(at);
+        } else {
+            self.to.push(panel);
+        }
+    }
+
+    /// The link, once it has a source and at least one other target.
+    pub fn to_link(&self) -> Option<Link> {
+        let from = self.from?;
+        let to: Vec<PanelId> = self.to.iter().copied().filter(|p| *p != from).collect();
+        (!to.is_empty()).then(|| Link {
+            from,
+            context: ContextType::instrument(),
+            to,
+            mode: self.mode,
+            gesture: self.gesture,
+        })
     }
 }
 

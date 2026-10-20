@@ -230,3 +230,51 @@ fn contexts_know_their_fdc3_type() {
         }
     );
 }
+
+#[test]
+fn linked_panels_cover_links_and_the_group() {
+    let mut layout = layout();
+    layout
+        .add_link(link(1, &[3], LinkMode::All, None))
+        .expect("valid");
+    layout
+        .add_link(link(1, &[2, 3], LinkMode::RoundRobin, Some(Gesture::Shift)))
+        .expect("valid");
+    layout
+        .add_link(link(2, &[5], LinkMode::All, None))
+        .expect("valid");
+    for id in [1, 4] {
+        layout
+            .set_group(PanelId(id), Some(LinkColour::Red))
+            .expect("known");
+    }
+    assert_eq!(linked_panels(&layout, PanelId(1)), ids(&[2, 3, 4]));
+    assert_eq!(linked_panels(&layout, PanelId(4)), ids(&[1]));
+    assert!(linked_panels(&layout, PanelId(3)).is_empty());
+}
+
+#[test]
+fn a_draft_needs_a_source_and_another_target() {
+    let mut draft = LinkDraft::default();
+    assert_eq!(draft.to_link(), None);
+    draft.toggle_target(PanelId(2));
+    assert_eq!(draft.to_link(), None, "no source yet");
+    draft.from = Some(PanelId(2));
+    assert_eq!(draft.to_link(), None, "the only target is the source");
+    draft.toggle_target(PanelId(3));
+    draft.mode = LinkMode::LastFocused;
+    draft.gesture = Some(Gesture::Ctrl);
+    assert_eq!(
+        draft.to_link(),
+        Some(link(2, &[3], LinkMode::LastFocused, Some(Gesture::Ctrl)))
+    );
+}
+
+#[test]
+fn toggling_a_target_twice_removes_it() {
+    let mut draft = LinkDraft::default();
+    draft.toggle_target(PanelId(2));
+    draft.toggle_target(PanelId(3));
+    draft.toggle_target(PanelId(2));
+    assert_eq!(draft.to, ids(&[3]));
+}

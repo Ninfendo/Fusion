@@ -38,6 +38,8 @@ mod tests {
         let market = DemoMarket::new(1);
         let mut harness = Harness::new_ui(|ui| {
             let mut cx = PanelContext {
+                panel: fusion_layout::PanelId(1),
+                outbox: &mut Vec::new(),
                 theme: &theme,
                 market: &market,
                 now: 0.0,
