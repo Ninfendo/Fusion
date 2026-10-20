@@ -1642,8 +1642,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "fusion-serve"
+version = "0.0.1"
+dependencies = [
+ "fusion-domain",
+ "fusion-protocol",
+ "fusion-viewserver",
+ "futures-util",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "fusion-server"
 version = "0.0.1"
+dependencies = [
+ "fusion-protocol",
+ "fusion-serve",
+ "fusion-venue-binance",
+ "futures-util",
+ "tokio",
+ "tokio-tungstenite",
+]
 
 [[package]]
 name = "fusion-theme"
