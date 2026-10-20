@@ -63,8 +63,14 @@ exchange, and nothing else changes.
   executions, positions, alerts.
 - **Viewport:** one client's window onto one table: visible row range,
   columns, sort, CEL filter and group-by. Only rows in range are sent.
-- **Conflation:** each session keeps a set of changed rows and sends them at a
-  fixed rate (default 20 per second, set per viewport).
+- **Conflation:** each viewport is polled at its rate (default 20 per
+  second): a pass filters and sorts the table, takes the range, and compares
+  it with what was sent last, so a client gets only changed cells, and
+  nothing when nothing in range changed. Measured on 500 rows (release
+  build): 0.04 ms a pass, 0.13 ms with a CEL filter; the filter runs again
+  only on rows changed since the last pass (without that it was 0.74 ms).
+  A table of 100,000 rows will need an index that keeps the order between
+  passes.
 - **Slow clients:** a bounded send queue per session. When it fills, drop the
   queued changes and send a fresh snapshot. Never block the core.
 - **Actions:** new order, cancel, kill switch and save layout use the same

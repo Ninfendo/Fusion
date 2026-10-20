@@ -59,6 +59,7 @@ run happens every week.
 | Path | What it is |
 | --- | --- |
 | `crates/fusion-domain` | Core types: time, instruments, orders, events. No I/O; builds for wasm32. |
+| `crates/fusion-viewserver` | The view server engine: tables, and viewports that send only the rows in range and only what changed. No I/O. |
 | `crates/fusion-protocol` | The wire protocol between the view server and its clients: Protobuf messages (`proto/`), checked by `buf` in CI. No I/O; builds for wasm32. |
 | `crates/fusion-layout` | The layout model: windows, dock trees, panels, as versioned JSON. |
 | `crates/fusion-theme` | Colour tokens, dark and light, with a colour-blind option. |
