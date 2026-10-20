@@ -1,7 +1,8 @@
 //! Market data as tables.
 //!
 //! - `prices`: one row per instrument, keyed by symbol: best bid and ask,
-//!   last trade, change since the first trade seen, volume and trade count.
+//!   last trade, the first trade seen (`open`) and the change since, volume
+//!   and trade count.
 //! - `book/<SYMBOL>`: the top [`BOOK_DEPTH`] levels of each side of one
 //!   instrument's book, keyed `b00`..`b19` and `a00`..`a19`. One small table
 //!   per instrument, so an L2 panel reads 40 rows, not every book at once.
@@ -17,9 +18,9 @@ use crate::table::Table;
 pub const PRICES: &str = "prices";
 
 /// Its columns.
-pub const PRICE_COLUMNS: [&str; 11] = [
+pub const PRICE_COLUMNS: [&str; 12] = [
     "symbol", "bid", "bid_qty", "ask", "ask_qty", "last", "last_qty", "change", "volume", "trades",
-    "time",
+    "time", "open",
 ];
 
 /// Levels kept on each side of a book table.
@@ -54,6 +55,7 @@ mod col {
     pub const VOLUME: usize = 8;
     pub const TRADES: usize = 9;
     pub const TIME: usize = 10;
+    pub const OPEN: usize = 11;
     pub const PRICE: usize = 2;
     pub const QUANTITY: usize = 3;
 }
@@ -183,6 +185,7 @@ impl Instrument {
         prices.set(key, col::VOLUME, dec(self.volume));
         prices.set(key, col::TRADES, Cell::Integer(self.trades));
         prices.set(key, col::TIME, Cell::Time(trade.time));
+        prices.set(key, col::OPEN, dec(first));
     }
 
     fn write_book(&self, tables: &mut Tables) {

@@ -11,9 +11,13 @@
 pub mod demo;
 pub mod ladder;
 pub mod links;
+pub mod live_market;
 pub mod market;
+pub mod viewport;
 pub mod watchlist;
 pub mod workspace;
 
 pub use fusion_domain::{Decimal, Price, Quantity};
-pub use market::{Book, Level, Quote};
+pub use live_market::LiveMarket;
+pub use market::{Book, Level, MarketData, Quote};
+pub use viewport::{Missed, ViewportCache};

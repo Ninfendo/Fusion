@@ -17,6 +17,16 @@ pub struct Quote {
     pub open: Price,
 }
 
+/// Where panels get market data: the demo market, or the view server.
+pub trait MarketData {
+    /// Every instrument's quote, in a fixed order.
+    fn quotes(&self) -> Vec<Quote>;
+    /// The symbols, in the same order.
+    fn symbols(&self) -> Vec<String>;
+    /// An order book, at most `depth` levels a side, if known.
+    fn book(&self, symbol: &str, depth: usize) -> Option<Book>;
+}
+
 /// One price level of an order book.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Level {

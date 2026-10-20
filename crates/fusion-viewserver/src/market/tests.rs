@@ -99,6 +99,7 @@ fn trades_add_up() {
         Cell::Real(10.0),
         "+10% since 100"
     );
+    assert_eq!(price_cell(&tables, "open"), d("100"), "the first trade");
     assert_eq!(price_cell(&tables, "volume"), d("2"));
     assert_eq!(price_cell(&tables, "trades"), Cell::Integer(2));
     assert_eq!(

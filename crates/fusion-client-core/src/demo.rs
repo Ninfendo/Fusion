@@ -292,6 +292,23 @@ mod tests {
 
 /// Golden tests: they pin the exact output, so any change to the generator
 /// or the walk shows up. The demo market is meant to be exactly repeatable.
+impl crate::market::MarketData for DemoMarket {
+    fn quotes(&self) -> Vec<Quote> {
+        DemoMarket::quotes(self)
+    }
+
+    fn symbols(&self) -> Vec<String> {
+        DemoMarket::symbols(self)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    fn book(&self, symbol: &str, depth: usize) -> Option<Book> {
+        DemoMarket::book(self, symbol, depth)
+    }
+}
+
 #[cfg(test)]
 mod golden {
     use super::*;
@@ -375,5 +392,19 @@ mod golden {
                 "64000.04 2.351",
             ]
         );
+    }
+
+    #[test]
+    fn the_demo_market_serves_panels_like_the_live_one() {
+        use crate::market::MarketData;
+        let market = DemoMarket::new(1);
+        let data: &dyn MarketData = &market;
+        assert_eq!(data.quotes(), market.quotes());
+        let symbols = data.symbols();
+        assert_eq!(symbols.len(), market.symbols().len());
+        assert_eq!(symbols[0], market.symbols()[0]);
+        let book = data.book(&symbols[0], 3).expect("a book");
+        assert_eq!(book.bids.len(), 3);
+        assert_eq!(Some(book), market.book(&symbols[0], 3));
     }
 }
