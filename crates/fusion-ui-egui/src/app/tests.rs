@@ -747,6 +747,24 @@ fn headers_offer_the_moves_that_work() {
         offered_moves(&layout, window, PanelId(2)),
         [Move::Out, Move::In]
     );
+    let mut alone = default_layout();
+    alone.pop_out(PanelId(2)).expect("pops out");
+    alone.pop_out(PanelId(3)).expect("pops out");
+    assert_eq!(
+        offered_moves(&alone, WindowId::MAIN, PanelId(1)),
+        [Move::Out],
+        "the last panel of the main window can still pop out"
+    );
+    let mut handmade = default_layout();
+    let window = handmade.pop_out(PanelId(2)).expect("pops out");
+    if let Some(panel) = handmade.panels.get_mut(&PanelId(2)) {
+        panel.origin = None;
+    }
+    assert_eq!(
+        offered_moves(&handmade, window, PanelId(2)),
+        [Move::In],
+        "a panel outside the main window can always pop in"
+    );
     assert_eq!(Move::Out.label(), "Pop out");
     assert_eq!(Move::In.label(), "Pop in");
 }
