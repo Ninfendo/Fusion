@@ -57,6 +57,9 @@ pub enum LayoutError {
     /// A link names the same target panel twice.
     #[error("panel {0} is a link target twice")]
     LinkTargetTwice(PanelId),
+    /// There is no link at this index.
+    #[error("there is no link {0}")]
+    UnknownLink(usize),
     /// Pop in was asked for a panel that is in the main window and was
     /// never popped out.
     #[error("panel {0} is not popped out")]
