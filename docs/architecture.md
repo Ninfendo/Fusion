@@ -269,6 +269,12 @@ This is Fusion's equivalent of an IoC container. There is no container crate.
 
   OpenGL also used less CPU time (0.4 s against 0.55 s per 10 s with the
   demo market). The launcher itself takes 6 MB.
+  Decided 2026-10-20: keep OpenGL. egui sends the GPU little work (flat 2D
+  shapes and text); its cost is on the CPU, so a newer graphics API gains
+  nothing and costs memory in every window. Measure again when charts come:
+  heavy GPU work (millions of points, shaders) may be faster on DX12, Vulkan
+  or Metal, and since each window is its own process, a chart window can use
+  one of those while the others stay on OpenGL.
 
 ## Determinism rules
 
