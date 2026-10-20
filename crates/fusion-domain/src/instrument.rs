@@ -28,21 +28,35 @@ pub enum InstrumentError {
     /// The price is zero or negative.
     PriceNotPositive(Price),
     /// The price is not a multiple of the tick size.
-    PriceOffTick { price: Price, tick_size: Price },
+    PriceOffTick {
+        /// The refused price.
+        price: Price,
+        /// The instrument's tick size.
+        tick_size: Price,
+    },
     /// The quantity is zero or negative.
     QuantityNotPositive(Quantity),
     /// The quantity is below the minimum.
     QuantityBelowMinimum {
+        /// The refused quantity.
         quantity: Quantity,
+        /// The instrument's minimum quantity.
         minimum: Quantity,
     },
     /// The quantity is not a multiple of the lot size.
     QuantityOffLot {
+        /// The refused quantity.
         quantity: Quantity,
+        /// The instrument's lot size.
         lot_size: Quantity,
     },
     /// Price times quantity is below the minimum.
-    NotionalBelowMinimum { notional: Decimal, minimum: Decimal },
+    NotionalBelowMinimum {
+        /// Price times quantity.
+        notional: Decimal,
+        /// The instrument's minimum order value.
+        minimum: Decimal,
+    },
 }
 
 impl fmt::Display for InstrumentError {
@@ -210,5 +224,56 @@ mod tests {
             instrument.check_order(p("64000.0001"), q("0.0012345")),
             Ok(())
         );
+    }
+
+    #[test]
+    fn errors_read_as_sentences() {
+        let cases = [
+            (
+                InstrumentError::PriceNotPositive(p("0")),
+                "price 0 must be above zero",
+            ),
+            (
+                InstrumentError::PriceOffTick {
+                    price: p("1.005"),
+                    tick_size: p("0.01"),
+                },
+                "price 1.005 is not a multiple of the tick size 0.01",
+            ),
+            (
+                InstrumentError::QuantityNotPositive(q("0")),
+                "quantity 0 must be above zero",
+            ),
+            (
+                InstrumentError::QuantityBelowMinimum {
+                    quantity: q("0.1"),
+                    minimum: q("1"),
+                },
+                "quantity 0.1 is below the minimum 1",
+            ),
+            (
+                InstrumentError::QuantityOffLot {
+                    quantity: q("1.5"),
+                    lot_size: q("1"),
+                },
+                "quantity 1.5 is not a multiple of the lot size 1",
+            ),
+            (
+                InstrumentError::NotionalBelowMinimum {
+                    notional: "4".parse().expect("valid"),
+                    minimum: "5".parse().expect("valid"),
+                },
+                "order value 4 is below the minimum 5",
+            ),
+        ];
+        for (err, text) in cases {
+            assert_eq!(err.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn an_order_exactly_at_the_minimum_value_is_allowed() {
+        // 50000 * 0.0001 = 5, the minimum.
+        assert_eq!(btc_usdt().check_order(p("50000"), q("0.0001")), Ok(()));
     }
 }

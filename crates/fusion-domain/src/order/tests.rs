@@ -910,3 +910,143 @@ fn accessors_report_the_order() {
     assert_eq!(order.side(), Side::Buy);
     assert!(order.fills().is_empty());
 }
+
+#[test]
+fn an_unsolicited_replace_is_accepted() {
+    let mut order = acked();
+    let mut done = report("e1", ExecType::Replaced, OrdStatus::New, "0", "6");
+    done.cl_ord_id = cl("venue-7");
+    done.order_qty = Some(q("6"));
+    apply(&mut order, exec(done));
+    assert_eq!(order.quantity(), q("6"));
+    assert_eq!(order.limit_price(), Some(p("100")));
+    assert_eq!(order.cl_ord_id(), &cl("venue-7"));
+    assert_eq!(order.cl_ord_ids(), [cl("c1"), cl("venue-7")]);
+}
+
+#[test]
+fn a_correction_of_an_unknown_fill_is_refused() {
+    let mut order = partially_filled();
+    let mut correction = ExecutionReport {
+        last_qty: Some(q("3")),
+        last_px: Some(p("100")),
+        ..report(
+            "e2",
+            ExecType::TradeCorrect,
+            OrdStatus::PartiallyFilled,
+            "3",
+            "7",
+        )
+    };
+    correction.exec_ref_id = Some(ExecId::new("nope"));
+    assert_eq!(
+        refuse(&mut order, exec(correction)),
+        OrderError::UnknownFill {
+            exec_ref_id: ExecId::new("nope")
+        }
+    );
+}
+
+#[test]
+fn every_error_reads_as_a_sentence() {
+    let cases = [
+        (
+            OrderError::NotSubmitted,
+            "the first event of an order must be Submitted",
+        ),
+        (
+            OrderError::AlreadySubmitted,
+            "the order was already submitted",
+        ),
+        (
+            OrderError::Terminal {
+                status: OrdStatus::Filled,
+            },
+            "the order is Filled and cannot change",
+        ),
+        (
+            OrderError::RequestInFlight { pending: cl("c2") },
+            "request c2 is still waiting for an answer",
+        ),
+        (
+            OrderError::NoMatchingRequest {
+                cl_ord_id: cl("c9"),
+            },
+            "no request c9 is waiting for an answer",
+        ),
+        (
+            OrderError::StatusDoesNotFit {
+                exec_type: ExecType::Trade,
+                ord_status: OrdStatus::New,
+            },
+            "OrdStatus New cannot go with ExecType Trade",
+        ),
+        (
+            OrderError::UnexpectedExecType {
+                exec_type: ExecType::New,
+                status: OrdStatus::New,
+            },
+            "ExecType New does not fit an order that is New",
+        ),
+        (
+            OrderError::InvalidField {
+                exec_type: ExecType::Trade,
+                field: "LastPx (31)",
+            },
+            "ExecType Trade needs LastPx (31) above zero",
+        ),
+        (
+            OrderError::UnknownFill {
+                exec_ref_id: ExecId::new("e9"),
+            },
+            "no fill with ExecID e9",
+        ),
+        (
+            OrderError::QuantityMismatch {
+                field: QuantityField::CumQty,
+                ours: q("4"),
+                reported: q("5"),
+            },
+            "CumQty is 4 by our fills but 5 by the venue",
+        ),
+    ];
+    for (err, text) in cases {
+        assert_eq!(err.to_string(), text);
+    }
+}
+
+#[test]
+fn a_venue_status_change_during_a_cancel_wins() {
+    let mut order = acked();
+    apply(&mut order, cancel("c2"));
+    apply(
+        &mut order,
+        exec(report(
+            "e1",
+            ExecType::DoneForDay,
+            OrdStatus::DoneForDay,
+            "0",
+            "0",
+        )),
+    );
+    assert_eq!(order.status(), OrdStatus::DoneForDay);
+    assert!(
+        order.pending().is_some(),
+        "the cancel still waits for an answer"
+    );
+}
+
+#[test]
+fn a_replace_down_to_the_filled_quantity_is_allowed() {
+    let mut order = partially_filled();
+    apply(&mut order, replace("c2", "4", "100"));
+    assert_eq!(order.status(), OrdStatus::PendingReplace);
+}
+
+#[test]
+fn fills_are_kept_by_exec_id() {
+    let order = partially_filled();
+    let fill = order.fills().get(&ExecId::new("e1")).expect("fill e1");
+    assert_eq!(fill.quantity, q("4"));
+    assert_eq!(fill.price, p("100"));
+}

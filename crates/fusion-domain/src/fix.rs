@@ -388,4 +388,20 @@ mod tests {
             assert!(!ExecType::Trade.allows_status(status));
         }
     }
+
+    #[test]
+    fn only_resting_orders_are_working() {
+        let working: Vec<OrdStatus> = OrdStatus::ALL
+            .into_iter()
+            .filter(|s| s.is_working())
+            .collect();
+        assert_eq!(
+            working,
+            [
+                OrdStatus::New,
+                OrdStatus::PartiallyFilled,
+                OrdStatus::PendingNew
+            ]
+        );
+    }
 }

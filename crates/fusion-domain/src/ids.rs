@@ -50,3 +50,23 @@ string_id!(
     /// FIX ExecID (tag 17): the venue's id of one execution report.
     ExecId
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn string_ids_show_as_written() {
+        let id = ClOrdId::new("abc-1");
+        assert_eq!(id.as_str(), "abc-1");
+        assert_eq!(id.to_string(), "abc-1");
+        assert_eq!(ExecId::new("e7").to_string(), "e7");
+        assert_eq!(ExecId::new("e7").as_str(), "e7");
+    }
+
+    #[test]
+    fn numeric_ids_order_by_value() {
+        assert!(InstrumentId(1) < InstrumentId(2));
+        assert!(OrderId(1) < OrderId(2));
+    }
+}

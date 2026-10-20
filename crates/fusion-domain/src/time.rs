@@ -160,4 +160,16 @@ mod tests {
         assert_eq!(err.requested, Timestamp::from_unix_nanos(9));
         assert_eq!(clock.now(), Timestamp::from_unix_nanos(10));
     }
+
+    #[test]
+    fn going_back_reads_as_a_sentence() {
+        let err = TimeWentBackwards {
+            now: Timestamp::from_unix_nanos(10),
+            requested: Timestamp::from_unix_nanos(9),
+        };
+        assert_eq!(
+            err.to_string(),
+            "clock cannot move backwards: now 10 ns, requested 9 ns"
+        );
+    }
 }

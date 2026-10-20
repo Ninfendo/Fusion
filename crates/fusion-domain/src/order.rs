@@ -504,15 +504,10 @@ impl Order {
         }
 
         match report.exec_type {
-            ExecType::PendingNew | ExecType::New => self.expect_unacknowledged(report)?,
-            ExecType::Rejected => {
+            // A fill moves the order out of PendingNew, so an order that is
+            // still unacknowledged has no fills and a reject is safe.
+            ExecType::PendingNew | ExecType::New | ExecType::Rejected => {
                 self.expect_unacknowledged(report)?;
-                if !self.fills.is_empty() {
-                    return Err(OrderError::UnexpectedExecType {
-                        exec_type: report.exec_type,
-                        status: self.status,
-                    });
-                }
             }
             ExecType::Trade => self.add_fill(report)?,
             ExecType::TradeCorrect => self.correct_fill(report)?,

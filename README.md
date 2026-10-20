@@ -40,9 +40,13 @@ cargo build --target wasm32-unknown-unknown -p fusion-domain   # browser build c
 cargo run -p fusion-server                                     # the server (a stub for now)
 ```
 
-CI runs the same checks on Linux, Windows and macOS, plus
-[cargo-deny](https://github.com/EmbarkStudios/cargo-deny) for licences and
-security advisories.
+CI runs the same checks on Linux, Windows and macOS. It also blocks a merge
+on: complexity limits in clippy, line coverage below 95%
+([cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)), surviving
+mutants in changed code ([cargo-mutants](https://github.com/sourcefrog/cargo-mutants)),
+doc warnings, unused dependencies, typos, and licence or security problems
+([cargo-deny](https://github.com/EmbarkStudios/cargo-deny)). A full mutation
+run happens every week.
 
 ## Layout
 

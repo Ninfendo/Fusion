@@ -17,9 +17,19 @@ rust_decimal = { version = "1.43", default-features = false, features = ["std"] 
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+missing_docs = "warn"
 
+# CI turns every warning into an error. Limits for the complexity lints are in
+# clippy.toml.
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+cognitive_complexity = "warn"
+too_many_lines = "warn"
+excessive_nesting = "warn"
+unwrap_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
 
 # Many small crates: without LTO, small non-generic functions are not inlined
 # across crate boundaries, which costs speed in hot loops.

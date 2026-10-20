@@ -12,7 +12,23 @@ cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked     # CI adds RUSTFLAGS=-D warnings
 cargo fmt --all
 cargo build --locked --target wasm32-unknown-unknown -p fusion-domain
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+cargo llvm-cov --workspace --exclude fusion-server --summary-only --show-missing-lines
+cargo mutants --in-diff <(git diff origin/main...HEAD)   # mutation testing of your change
+cargo machete && typos                                    # unused dependencies, spelling
 ```
+
+## Quality gates (all block a merge)
+
+- Clippy with warnings as errors, including complexity limits from the root
+  `clippy.toml`: cognitive complexity 15, 80 lines per function, 6
+  arguments, nesting depth 5. Split a function rather than raise a limit.
+- Line coverage of library crates at least 95%. The floor only goes up.
+- Mutation testing on the lines a pull request changes: a missed mutant
+  means a test is missing. Add the test; do not skip the mutant without a
+  written reason.
+- Public items need docs (`missing_docs`), and `cargo doc` must be clean.
+- No unused dependencies (cargo-machete), no typos, cargo-deny clean.
 
 No local Rust? Run the same checks in Docker:
 `docker run --rm -v "<repo>:/work" -w /work rust:latest sh -c "rustup toolchain install && cargo test --workspace --locked"`.
@@ -28,8 +44,10 @@ server's fan-out. See "Performance rules" in docs/architecture.md.
 ## Hard rules
 
 - **Determinism.** The engine reads time only through `fusion_domain::Clock`.
-  No `HashMap` or `HashSet` in core crates (each core crate has a
-  `clippy.toml` that bans them; copy it into every new core crate).
+  `HashMap` and `HashSet` are banned workspace-wide by the root
+  `clippy.toml`. A crate that needs one, and never iterates it on a replayed
+  path, allows it at its crate root with the reason. Never add a
+  `clippy.toml` inside a crate: it would replace the root one.
 - **Money.** Prices and quantities use `rust_decimal`, never `f32` or `f64`.
 - **Time.** UTC nanoseconds in an `i64` (`fusion_domain::Timestamp`).
 - **Browser.** `fusion-domain` and `client-core` must build for
