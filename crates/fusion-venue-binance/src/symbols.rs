@@ -90,8 +90,9 @@ impl SymbolTable {
         (1..=self.symbols.len()).filter_map(|i| u32::try_from(i).ok().map(InstrumentId))
     }
 
-    /// The address of one combined stream with every instrument's streams.
-    pub fn stream_url(&self, endpoint: Endpoint) -> String {
+    /// The address of one combined stream with every instrument's
+    /// streams, on the WebSocket base `base`.
+    pub fn stream_url(&self, base: &str) -> String {
         let streams: Vec<String> = self
             .symbols
             .iter()
@@ -100,28 +101,22 @@ impl SymbolTable {
                 STREAMS.iter().map(move |kind| format!("{lower}@{kind}"))
             })
             .collect();
-        format!(
-            "{}/stream?streams={}",
-            endpoint.stream_base(),
-            streams.join("/")
-        )
+        format!("{base}/stream?streams={}", streams.join("/"))
     }
 
-    /// The REST address of a book snapshot with up to 1000 levels a side.
-    pub fn snapshot_url(&self, endpoint: Endpoint, id: InstrumentId) -> Option<String> {
+    /// The REST address of a book snapshot with up to 1000 levels a side,
+    /// on the REST base `base`.
+    pub fn snapshot_url(&self, base: &str, id: InstrumentId) -> Option<String> {
         let symbol = self.symbol(id)?;
-        Some(format!(
-            "{}/api/v3/depth?symbol={symbol}&limit=1000",
-            endpoint.rest_base()
-        ))
+        Some(format!("{base}/api/v3/depth?symbol={symbol}&limit=1000"))
     }
 
-    /// The REST address of up to 1000 trades from trade number `from` on.
-    pub fn trades_url(&self, endpoint: Endpoint, id: InstrumentId, from: u64) -> Option<String> {
+    /// The REST address of up to 1000 trades from trade number `from` on,
+    /// on the REST base `base`.
+    pub fn trades_url(&self, base: &str, id: InstrumentId, from: u64) -> Option<String> {
         let symbol = self.symbol(id)?;
         Some(format!(
-            "{}/api/v3/aggTrades?symbol={symbol}&fromId={from}&limit=1000",
-            endpoint.rest_base()
+            "{base}/api/v3/aggTrades?symbol={symbol}&fromId={from}&limit=1000"
         ))
     }
 }
@@ -152,30 +147,27 @@ mod tests {
     fn addresses_follow_the_endpoint() {
         let table = SymbolTable::new(["BTCUSDT", "ETHUSDT"]);
         assert_eq!(
-            table.stream_url(Endpoint::Testnet),
+            table.stream_url(Endpoint::Testnet.stream_base()),
             "wss://stream.testnet.binance.vision/stream?streams=\
              btcusdt@aggTrade/btcusdt@depth@100ms/btcusdt@bookTicker/\
              ethusdt@aggTrade/ethusdt@depth@100ms/ethusdt@bookTicker"
         );
         assert_eq!(
             table
-                .snapshot_url(Endpoint::Public, InstrumentId(1))
+                .snapshot_url(Endpoint::Public.rest_base(), InstrumentId(1))
                 .as_deref(),
             Some("https://data-api.binance.vision/api/v3/depth?symbol=BTCUSDT&limit=1000")
         );
         assert_eq!(
             table
-                .trades_url(Endpoint::Testnet, InstrumentId(2), 7)
+                .trades_url(Endpoint::Testnet.rest_base(), InstrumentId(2), 7)
                 .as_deref(),
             Some(
                 "https://testnet.binance.vision/api/v3/aggTrades?symbol=ETHUSDT&fromId=7&limit=1000"
             )
         );
-        assert_eq!(table.snapshot_url(Endpoint::Testnet, InstrumentId(9)), None);
-        assert_eq!(
-            table.trades_url(Endpoint::Testnet, InstrumentId(9), 1),
-            None
-        );
+        assert_eq!(table.snapshot_url("x", InstrumentId(9)), None);
+        assert_eq!(table.trades_url("x", InstrumentId(9), 1), None);
         assert!(
             Endpoint::Public
                 .stream_base()

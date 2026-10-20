@@ -122,6 +122,12 @@ impl Feed {
         }
     }
 
+    /// The number of the last trade passed on for an instrument.
+    pub fn last_trade(&self, id: InstrumentId) -> Option<u64> {
+        let index = usize::try_from(id.0).ok()?.checked_sub(1)?;
+        self.instruments.get(index)?.trades.sequence.last()
+    }
+
     /// Takes an event from the stream.
     pub fn on_event(&mut self, event: MarketEvent, out: &mut Output) {
         let Some(slot) = self.slot(event.instrument()) else {

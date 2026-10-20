@@ -247,6 +247,10 @@ fn trades_pass_once_in_order() {
         .collect();
     assert_eq!(ids, [100, 101, 102]);
     assert!(out.wants.is_empty());
+    assert_eq!(feed.last_trade(BTC), Some(102));
+    assert_eq!(feed.last_trade(ETH), None);
+    assert_eq!(feed.last_trade(InstrumentId(0)), None);
+    assert_eq!(feed.last_trade(InstrumentId(9)), None);
 }
 
 #[test]

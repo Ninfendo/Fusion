@@ -5,10 +5,11 @@
 //! - [`Feed`] keeps each order book in sync with Binance's documented
 //!   procedure, drops duplicates, and asks for what is missing.
 //!
-//! Everything here is pure; the connection that fetches and streams comes
-//! on top.
+//! - [`live::run`] is the connection: it streams, fetches what the feed
+//!   asks for, and keeps going for days.
 
 mod feed;
+pub mod live;
 mod symbols;
 mod wire;
 
