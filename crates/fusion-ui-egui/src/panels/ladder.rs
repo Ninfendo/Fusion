@@ -1,11 +1,11 @@
 //! The L2 ladder view: the order book of one instrument.
 
 use egui::{RichText, Sense, vec2};
-use fusion_client_core::{Level, ladder::LadderModel};
+use fusion_client_core::{Level, ladder::LadderModel, links::Context};
 use fusion_egui_theme::color;
 use fusion_theme::Rgba;
 
-use super::{PanelContext, PanelView};
+use super::{Events, PanelContext, PanelView};
 
 /// Levels shown on each side.
 pub const DEPTH: usize = 10;
@@ -67,6 +67,17 @@ impl PanelView for LadderView {
                 }
             });
     }
+
+    fn receive(&mut self, context: &Context, events: &mut Events) {
+        match context {
+            Context::Instrument { ticker } => {
+                if self.model.symbol() != Some(ticker.as_str()) {
+                    self.model.show(ticker.as_str());
+                    events.push(format!("L2: showing {ticker} (linked)"));
+                }
+            }
+        }
+    }
 }
 
 /// The depth bar: the left part of a level's cell, as wide as the level's
@@ -122,6 +133,8 @@ mod tests {
         {
             let mut harness = Harness::new_ui(|ui| {
                 let mut cx = PanelContext {
+                    panel: fusion_layout::PanelId(1),
+                    outbox: &mut Vec::new(),
                     theme: &theme,
                     market: &market,
                     now: 0.0,
@@ -182,6 +195,8 @@ mod tests {
         let mut view = LadderView::default();
         let mut harness = Harness::new_ui(|ui| {
             let mut cx = PanelContext {
+                panel: fusion_layout::PanelId(1),
+                outbox: &mut Vec::new(),
                 theme: &theme,
                 market: &market,
                 now: 0.0,

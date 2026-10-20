@@ -8,15 +8,30 @@ mod watchlist;
 use std::collections::VecDeque;
 
 use fusion_client_core::demo::DemoMarket;
+use fusion_client_core::links::Context;
+use fusion_layout::{Gesture, PanelId};
 use fusion_theme::Theme;
 
 pub use ladder::LadderView;
 pub use log::LogView;
 pub use placeholder::Placeholder;
-pub use watchlist::{WatchlistView, flash_strength, format_change};
+pub use watchlist::{WatchlistView, flash_strength, format_change, gesture_of};
+
+/// A selection a panel sends to the panels linked to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Outgoing {
+    /// The panel the selection was made in.
+    pub from: PanelId,
+    /// What was selected.
+    pub context: Context,
+    /// The modifier key held, if any.
+    pub gesture: Option<Gesture>,
+}
 
 /// What every panel view gets while it draws.
 pub struct PanelContext<'a> {
+    /// The panel being drawn.
+    pub panel: PanelId,
     /// The colour tokens.
     pub theme: &'a Theme,
     /// The market the panels show. A demo market until the view server exists.
@@ -25,6 +40,8 @@ pub struct PanelContext<'a> {
     pub now: f64,
     /// The app's event log.
     pub events: &'a mut Events,
+    /// Selections to send to linked panels after this frame.
+    pub outbox: &'a mut Vec<Outgoing>,
 }
 
 /// The app's event log: the newest last, at most [`Events::CAPACITY`] lines.
@@ -65,6 +82,10 @@ impl Events {
 pub trait PanelView {
     /// Draws the panel.
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut PanelContext<'_>);
+
+    /// Takes a selection made in a linked panel. A received context is
+    /// never sent on, so links cannot loop.
+    fn receive(&mut self, _context: &Context, _events: &mut Events) {}
 }
 
 /// A panel type the app can create.

@@ -1,11 +1,27 @@
 //! The watchlist view.
 
 use egui::{Color32, RichText};
+use fusion_client_core::links::Context;
 use fusion_client_core::watchlist::{Action, Effect, Move, Row, WatchlistModel};
 use fusion_egui_theme::color;
+use fusion_layout::Gesture;
 use fusion_theme::{Rgba, Theme};
 
-use super::{PanelContext, PanelView};
+use super::{Outgoing, PanelContext, PanelView};
+
+/// The link gesture for the keys held during a click: Shift wins over Ctrl
+/// (or Cmd), which wins over Alt.
+pub fn gesture_of(keys: egui::Modifiers) -> Option<Gesture> {
+    if keys.shift {
+        Some(Gesture::Shift)
+    } else if keys.command || keys.ctrl {
+        Some(Gesture::Ctrl)
+    } else if keys.alt {
+        Some(Gesture::Alt)
+    } else {
+        None
+    }
+}
 
 /// How long a price flash takes to fade, in seconds.
 pub const FLASH_SECONDS: f64 = 0.8;
@@ -39,10 +55,18 @@ impl PanelView for WatchlistView {
         let clicked = egui::ScrollArea::vertical()
             .show(ui, |ui| rows_grid(ui, &self.model, theme, now))
             .inner;
+        let gesture = ui.input(|i| gesture_of(i.modifiers));
         let effects = clicked.map(|s| self.model.update(Action::Select(s)));
         for effect in effects.into_iter().flatten() {
             match effect {
-                Effect::InstrumentSelected(s) => cx.events.push(format!("Watchlist: {s} selected")),
+                Effect::InstrumentSelected(s) => {
+                    cx.events.push(format!("Watchlist: {s} selected"));
+                    cx.outbox.push(Outgoing {
+                        from: cx.panel,
+                        context: Context::instrument(s),
+                        gesture,
+                    });
+                }
             }
         }
     }
@@ -193,6 +217,24 @@ mod tests {
         assert_eq!(change_colour(d("1"), &theme), theme.buy);
         assert_eq!(change_colour(d("-1"), &theme), theme.sell);
         assert_eq!(change_colour(d("0"), &theme), theme.text_muted);
+    }
+
+    #[test]
+    fn keys_map_to_gestures() {
+        use egui::Modifiers;
+        assert_eq!(gesture_of(Modifiers::NONE), None);
+        assert_eq!(gesture_of(Modifiers::SHIFT), Some(Gesture::Shift));
+        assert_eq!(gesture_of(Modifiers::CTRL), Some(Gesture::Ctrl));
+        assert_eq!(gesture_of(Modifiers::COMMAND), Some(Gesture::Ctrl));
+        assert_eq!(gesture_of(Modifiers::ALT), Some(Gesture::Alt));
+        assert_eq!(
+            gesture_of(Modifiers::SHIFT | Modifiers::CTRL | Modifiers::ALT),
+            Some(Gesture::Shift)
+        );
+        assert_eq!(
+            gesture_of(Modifiers::CTRL | Modifiers::ALT),
+            Some(Gesture::Ctrl)
+        );
     }
 
     #[test]

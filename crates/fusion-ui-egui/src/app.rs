@@ -1,14 +1,22 @@
-//! The Fusion app: a menu bar, and the dock with its panels.
+//! The Fusion app: a menu bar, the dock with its panels, and the links
+//! editor.
+
+mod host;
+mod links_window;
 
 use std::collections::BTreeMap;
 use std::time::Duration;
 
 use fusion_client_core::demo::DemoMarket;
-use fusion_egui_dock::{DockOutput, DockTree, PanelHost, to_node, to_tree};
-use fusion_layout::{Child, Direction, Layout, Node, Panel, PanelId, WindowId};
+use fusion_client_core::links::{LinkDraft, LinkRouter, linked_panels};
+use fusion_egui_dock::{DockOutput, DockTree, to_node, to_tree};
+use fusion_layout::{
+    Child, ContextType, Direction, Layout, Link, LinkMode, Node, Panel, PanelId, WindowId,
+};
 use fusion_theme::{Mode, Theme};
 
-use crate::panels::{Events, KINDS, PanelContext, PanelView, create};
+use crate::panels::{Events, KINDS, Outgoing, PanelView, create};
+use host::{FrameInput, Host};
 
 /// Where the layout is saved, as JSON.
 pub const LAYOUT_KEY: &str = "fusion.layout";
@@ -24,7 +32,7 @@ fn dock_id() -> egui::Id {
 const STEP: Duration = Duration::from_millis(100);
 
 /// The layout a first start shows: a watchlist on the left, an L2 ladder
-/// and the log on the right.
+/// and the log on the right, and the watchlist linked to the ladder.
 pub fn default_layout() -> Layout {
     let mut layout = Layout::new("Fusion");
     for (id, kind) in (1..).zip(KINDS) {
@@ -58,6 +66,13 @@ pub fn default_layout() -> Layout {
                 },
             },
         ],
+    });
+    layout.links.push(Link {
+        from: PanelId(1),
+        context: ContextType::instrument(),
+        to: vec![PanelId(2)],
+        mode: LinkMode::All,
+        gesture: None,
     });
     layout
 }
@@ -99,6 +114,12 @@ pub struct FusionApp {
     market: DemoMarket,
     next_step_at: f64,
     events: Events,
+    router: LinkRouter,
+    /// The panel under the pointer last frame; its linked panels get an
+    /// outline.
+    hovered: Option<PanelId>,
+    links_open: bool,
+    draft: LinkDraft,
 }
 
 impl FusionApp {
@@ -133,6 +154,10 @@ impl FusionApp {
             market: DemoMarket::new(1),
             next_step_at: 0.0,
             events,
+            router: LinkRouter::default(),
+            hovered: None,
+            links_open: false,
+            draft: LinkDraft::default(),
         };
         app.rebuild();
         app
@@ -181,6 +206,7 @@ impl FusionApp {
     /// Goes back to the default layout.
     pub fn reset_layout(&mut self) {
         self.layout = default_layout();
+        self.router = LinkRouter::default();
         self.rebuild();
         self.events.push("Layout reset");
     }
@@ -208,14 +234,45 @@ impl FusionApp {
             return;
         }
         for id in output.closed {
-            if let Some(panel) = self.layout.panels.remove(&id) {
+            if let Ok(panel) = self.layout.close_panel(id) {
                 self.events.push(format!("Closed {}", panel.title));
             }
             self.views.remove(&id);
+            self.router.forget(id);
         }
         let root = to_node(&self.tree);
         if let Some(main) = self.layout.window_mut(WindowId::MAIN) {
             main.root = root;
+        }
+    }
+
+    /// Takes what the user did inside the panels this frame: the hovered
+    /// panel, clicks for last-focused links, and colour group changes.
+    fn apply_frame(&mut self, frame: FrameInput) {
+        self.hovered = frame.hovered;
+        for panel in frame.pressed {
+            self.router.focused(panel);
+        }
+        for (panel, colour) in frame.group_changes {
+            if self.layout.set_group(panel, colour).is_ok() {
+                let group = colour.map_or("no", |c| c.name());
+                self.events
+                    .push(format!("Panel {}: {group} link group", panel.0));
+            }
+        }
+    }
+
+    /// Sends each selection to the panels linked to it.
+    pub fn deliver(&mut self, outbox: Vec<Outgoing>) {
+        for out in outbox {
+            let targets = self
+                .router
+                .route(&self.layout, out.from, &out.context, out.gesture);
+            for target in targets {
+                if let Some(view) = self.views.get_mut(&target) {
+                    view.receive(&out.context, &mut self.events);
+                }
+            }
         }
     }
 
@@ -247,6 +304,10 @@ impl FusionApp {
     }
 
     fn layout_menu(&mut self, ui: &mut egui::Ui) {
+        if ui.button("Links...").clicked() {
+            self.links_open = true;
+            ui.close();
+        }
         if ui.button("Reset layout").clicked() {
             self.reset_layout();
             ui.close();
@@ -263,6 +324,12 @@ impl FusionApp {
 
     fn dock(&mut self, ui: &mut egui::Ui, now: f64) {
         let theme = self.theme();
+        let highlighted = self
+            .hovered
+            .map(|panel| linked_panels(&self.layout, panel))
+            .unwrap_or_default();
+        let mut frame = FrameInput::default();
+        let mut outbox = Vec::new();
         let mut host = Host {
             layout: &self.layout,
             views: &mut self.views,
@@ -270,9 +337,22 @@ impl FusionApp {
             market: &self.market,
             now,
             events: &mut self.events,
+            outbox: &mut outbox,
+            highlighted: &highlighted,
+            frame: &mut frame,
         };
         let output = fusion_egui_dock::show(&mut self.tree, ui, &mut host);
         self.apply_dock_output(output);
+        self.apply_frame(frame);
+        self.deliver(outbox);
+    }
+
+    fn links_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.links_open;
+        egui::Window::new("Links")
+            .open(&mut open)
+            .show(ctx, |ui| self.links_editor(ui));
+        self.links_open = open;
     }
 }
 
@@ -287,6 +367,7 @@ impl eframe::App for FusionApp {
         ui.ctx().request_repaint_after(STEP);
         self.menu_bar(ui);
         egui::CentralPanel::default().show(ui, |ui| self.dock(ui, now));
+        self.links_window(&ui.ctx().clone());
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -294,36 +375,6 @@ impl eframe::App for FusionApp {
             storage.set_string(LAYOUT_KEY, json);
         }
         storage.set_string(THEME_KEY, theme_to_text(self.mode, self.colour_blind));
-    }
-}
-
-/// Lets the dock draw panels from the app's views.
-struct Host<'a> {
-    layout: &'a Layout,
-    views: &'a mut BTreeMap<PanelId, Box<dyn PanelView>>,
-    theme: &'a Theme,
-    market: &'a DemoMarket,
-    now: f64,
-    events: &'a mut Events,
-}
-
-impl PanelHost for Host<'_> {
-    fn title(&self, id: PanelId) -> String {
-        self.layout
-            .panel(id)
-            .map_or_else(|| format!("Panel {}", id.0), |p| p.title.clone())
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, id: PanelId) {
-        let mut cx = PanelContext {
-            theme: self.theme,
-            market: self.market,
-            now: self.now,
-            events: self.events,
-        };
-        if let Some(view) = self.views.get_mut(&id) {
-            view.ui(ui, &mut cx);
-        }
     }
 }
 

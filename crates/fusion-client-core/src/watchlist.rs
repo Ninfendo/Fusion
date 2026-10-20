@@ -94,9 +94,8 @@ impl WatchlistModel {
     pub fn update(&mut self, action: Action) -> Vec<Effect> {
         match action {
             Action::Select(symbol) => {
-                if self.selected.as_deref() == Some(symbol.as_str()) {
-                    return Vec::new();
-                }
+                // A click on the selected row sends again: with a gesture it
+                // may go to another panel.
                 self.selected = Some(symbol.clone());
                 vec![Effect::InstrumentSelected(symbol)]
             }
@@ -174,17 +173,14 @@ mod tests {
     }
 
     #[test]
-    fn selecting_a_row_tells_linked_panels_once() {
+    fn every_click_tells_linked_panels() {
         let mut model = WatchlistModel::default();
-        assert_eq!(
-            model.update(Action::Select("A".to_owned())),
-            [Effect::InstrumentSelected("A".to_owned())]
-        );
-        assert_eq!(model.selected(), Some("A"));
-        assert!(model.update(Action::Select("A".to_owned())).is_empty());
-        assert_eq!(
-            model.update(Action::Select("B".to_owned())),
-            [Effect::InstrumentSelected("B".to_owned())]
-        );
+        for symbol in ["A", "A", "B"] {
+            assert_eq!(
+                model.update(Action::Select(symbol.to_owned())),
+                [Effect::InstrumentSelected(symbol.to_owned())]
+            );
+            assert_eq!(model.selected(), Some(symbol));
+        }
     }
 }
