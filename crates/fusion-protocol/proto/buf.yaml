@@ -1,0 +1,9 @@
+# buf checks the protocol in CI: `buf lint` for style, and `buf breaking`
+# against main so a change never breaks a client that is already deployed.
+version: v2
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - WIRE_JSON

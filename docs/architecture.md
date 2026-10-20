@@ -69,8 +69,13 @@ exchange, and nothing else changes.
   queued changes and send a fresh snapshot. Never block the core.
 - **Actions:** new order, cancel, kill switch and save layout use the same
   connection, and get an ack or an error.
-- **Protocol:** CreateViewport, ChangeViewport, Snapshot, Delta, RemoveRows,
-  Action, Ack, Error. Each message carries a sequence number per viewport.
+- **Protocol:** `crates/fusion-protocol/proto/fusion/v1/viewserver.proto`:
+  CreateViewport, ChangeViewport, RemoveViewport, SaveLayout, LoadLayout up;
+  Snapshot, Delta (rows added, cells updated, rows removed, new order), Ack,
+  Error down. One WebSocket binary frame per message; each viewport numbers
+  its messages. Prices travel as exact decimals (an integer and a scale).
+  It compiles with protox, a Protobuf compiler in Rust, so nothing needs
+  installing; CI runs `buf lint` and `buf breaking` against main.
 - **Order books:** the server subscribes in advance to the books of every
   instrument in any watchlist, so switching an L2 panel is fast.
 
