@@ -1,0 +1,20 @@
+[package]
+name = "fusion-recording"
+description = "Market data recordings: Parquet files of every market event, and a replay that checks the books it rebuilds."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+arrow-array.workspace = true
+arrow-schema.workspace = true
+fusion-domain.workspace = true
+parquet.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
