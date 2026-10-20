@@ -11,7 +11,8 @@ Public repo: https://github.com/Ninfendo/Fusion. Design and build order:
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked     # CI adds RUSTFLAGS=-D warnings
 cargo fmt --all
-cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout -p fusion-theme -p fusion-client-core
+cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout -p fusion-theme -p fusion-client-core -p fusion-ui-egui -p fusion-web
+(cd apps/fusion-web && trunk serve)                       # the browser app, at http://127.0.0.1:8080
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 cargo llvm-cov --workspace --ignore-filename-regex 'apps[/\\]' --summary-only --show-missing-lines
 cargo mutants --in-diff <(git diff origin/main...HEAD)   # mutation testing of your change
