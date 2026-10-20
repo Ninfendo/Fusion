@@ -255,10 +255,10 @@ fn assert_refused(cases: Vec<Breakage>) {
 fn validation_catches_broken_layouts() {
     assert_refused(vec![
         (
-            Box::new(|l| l.schema_version = 2),
+            Box::new(|l| l.schema_version = 1),
             LayoutError::UnsupportedVersion {
-                found: 2,
-                supported: 1,
+                found: 1,
+                supported: 2,
             },
         ),
         (Box::new(|l| l.windows.clear()), LayoutError::NoWindows),
@@ -373,12 +373,14 @@ fn json_round_trip_keeps_everything() {
 #[test]
 fn the_json_is_readable() {
     let text = sample().to_json().expect("serialises");
-    assert!(text.contains("\"schema_version\": 1"));
+    assert!(text.contains("\"schema_version\": 2"));
     assert!(text.contains("\"type\": \"split\""));
     assert!(text.contains("\"direction\": \"horizontal\""));
     assert!(text.contains("\"kind\": \"watchlist\""));
     assert!(!text.contains("\"config\""), "empty config is left out");
     assert!(!text.contains("\"bounds\""), "unknown bounds are left out");
+    assert!(!text.contains("\"links\""), "no links, no field");
+    assert!(!text.contains("\"groups\""), "no groups, no field");
 }
 
 #[test]
@@ -397,14 +399,32 @@ fn an_unknown_panel_kind_survives_a_round_trip() {
 
 #[test]
 fn a_newer_format_is_refused_before_parsing_the_rest() {
-    let text = r#"{ "schema_version": 2, "something": "new" }"#;
+    let text = r#"{ "schema_version": 3, "something": "new" }"#;
     assert_eq!(
         Layout::from_json(text),
         Err(LayoutError::UnsupportedVersion {
-            found: 2,
-            supported: 1
+            found: 3,
+            supported: 2
         })
     );
+    assert_eq!(
+        Layout::from_json(r#"{ "schema_version": 0 }"#),
+        Err(LayoutError::UnsupportedVersion {
+            found: 0,
+            supported: 2
+        })
+    );
+}
+
+#[test]
+fn a_format_1_file_is_upgraded_on_load() {
+    let text = sample()
+        .to_json()
+        .expect("serialises")
+        .replace("\"schema_version\": 2", "\"schema_version\": 1");
+    let loaded = Layout::from_json(&text).expect("format 1 still loads");
+    assert_eq!(loaded.schema_version, 2);
+    assert_eq!(loaded, sample());
 }
 
 #[test]
@@ -436,10 +456,10 @@ fn errors_read_as_sentences() {
     let cases = [
         (
             LayoutError::UnsupportedVersion {
-                found: 2,
-                supported: 1,
+                found: 3,
+                supported: 2,
             },
-            "layout format 2 is not supported; this build reads format 1",
+            "layout format 3 is not supported; this build reads format 2",
         ),
         (
             LayoutError::Json("eof".to_owned()),
@@ -482,6 +502,18 @@ fn errors_read_as_sentences() {
             },
             "the next panel id 2 must be above the highest id in use, 3",
         ),
+        (
+            LayoutError::LinkWithoutTargets(PanelId(1)),
+            "a link from panel 1 has no targets",
+        ),
+        (
+            LayoutError::LinkToItself(PanelId(2)),
+            "panel 2 cannot link to itself",
+        ),
+        (
+            LayoutError::LinkTargetTwice(PanelId(3)),
+            "panel 3 is a link target twice",
+        ),
     ];
     for (err, text) in cases {
         assert_eq!(err.to_string(), text);
@@ -515,4 +547,117 @@ fn a_split_whose_children_all_vanish_vanishes() {
         vec![Node::tabs(vec![]), Node::tabs(vec![])],
     );
     assert_eq!(split.simplified(), None);
+}
+
+// --- Links and groups ------------------------------------------------------------
+
+fn link(from: u64, to: &[u64]) -> Link {
+    Link {
+        from: PanelId(from),
+        context: ContextType::instrument(),
+        to: to.iter().map(|id| PanelId(*id)).collect(),
+        mode: LinkMode::All,
+        gesture: None,
+    }
+}
+
+#[test]
+fn a_valid_link_is_added() {
+    let mut layout = sample();
+    assert_eq!(layout.add_link(link(1, &[3])), Ok(()));
+    assert_eq!(layout.links, [link(1, &[3])]);
+    assert_eq!(layout.validate(), Ok(()));
+}
+
+#[test]
+fn a_bad_link_is_refused_and_not_kept() {
+    let cases = [
+        (link(9, &[3]), LayoutError::UnknownPanel(PanelId(9))),
+        (link(1, &[]), LayoutError::LinkWithoutTargets(PanelId(1))),
+        (link(1, &[9]), LayoutError::UnknownPanel(PanelId(9))),
+        (link(1, &[1]), LayoutError::LinkToItself(PanelId(1))),
+        (link(1, &[3, 3]), LayoutError::LinkTargetTwice(PanelId(3))),
+    ];
+    for (bad, expected) in cases {
+        let mut layout = sample();
+        assert_eq!(layout.add_link(bad), Err(expected));
+        assert!(layout.links.is_empty());
+    }
+}
+
+#[test]
+fn links_are_removed_by_index() {
+    let mut layout = sample();
+    layout.add_link(link(1, &[3])).expect("valid");
+    layout.add_link(link(2, &[3])).expect("valid");
+    assert_eq!(layout.remove_link(0), Some(link(1, &[3])));
+    assert_eq!(layout.links, [link(2, &[3])]);
+    assert_eq!(layout.remove_link(1), None, "one past the end");
+    assert_eq!(layout.remove_link(5), None);
+}
+
+#[test]
+fn panels_join_and_leave_colour_groups() {
+    let mut layout = sample();
+    assert_eq!(layout.set_group(PanelId(1), Some(LinkColour::Red)), Ok(()));
+    assert_eq!(layout.groups.get(&PanelId(1)), Some(&LinkColour::Red));
+    assert_eq!(layout.set_group(PanelId(1), None), Ok(()));
+    assert!(layout.groups.is_empty());
+    assert_eq!(
+        layout.set_group(PanelId(9), Some(LinkColour::Blue)),
+        Err(LayoutError::UnknownPanel(PanelId(9)))
+    );
+}
+
+#[test]
+fn closing_a_panel_cleans_up_its_links_and_group() {
+    let mut layout = sample();
+    layout.add_link(link(1, &[2, 3])).expect("valid");
+    layout.add_link(link(2, &[1])).expect("valid");
+    layout.add_link(link(3, &[2])).expect("valid");
+    layout
+        .set_group(PanelId(2), Some(LinkColour::Green))
+        .expect("known");
+    layout.close_panel(PanelId(2)).expect("closed");
+    // The link from 1 keeps its other target; the links from and to only 2 go.
+    assert_eq!(layout.links, [link(1, &[3])]);
+    assert!(layout.groups.is_empty());
+    assert_eq!(layout.validate(), Ok(()));
+}
+
+#[test]
+fn a_group_for_an_unknown_panel_is_refused() {
+    let mut layout = sample();
+    layout.groups.insert(PanelId(9), LinkColour::Red);
+    assert_eq!(
+        layout.validate(),
+        Err(LayoutError::UnknownPanel(PanelId(9)))
+    );
+}
+
+#[test]
+fn links_and_groups_survive_json() {
+    let mut layout = sample();
+    layout
+        .add_link(Link {
+            mode: LinkMode::RoundRobin,
+            gesture: Some(Gesture::Shift),
+            ..link(1, &[2, 3])
+        })
+        .expect("valid");
+    layout
+        .set_group(PanelId(3), Some(LinkColour::Yellow))
+        .expect("known");
+    let text = layout.to_json().expect("serialises");
+    assert!(text.contains("\"mode\": \"round-robin\""));
+    assert!(text.contains("\"gesture\": \"shift\""));
+    assert!(text.contains("\"context\": \"fdc3.instrument\""));
+    assert!(text.contains("\"3\": \"yellow\""));
+    assert_eq!(Layout::from_json(&text), Ok(layout));
+}
+
+#[test]
+fn colours_have_names() {
+    let names: Vec<&str> = LinkColour::ALL.iter().map(|c| c.name()).collect();
+    assert_eq!(names, ["Red", "Green", "Blue", "Yellow"]);
 }

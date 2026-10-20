@@ -10,6 +10,7 @@
 
 pub mod demo;
 pub mod ladder;
+pub mod links;
 pub mod market;
 pub mod watchlist;
 

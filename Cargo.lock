@@ -1241,6 +1241,7 @@ name = "fusion-client-core"
 version = "0.0.1"
 dependencies = [
  "fusion-domain",
+ "fusion-layout",
 ]
 
 [[package]]
