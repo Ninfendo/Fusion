@@ -13,4 +13,5 @@ pub mod ladder;
 pub mod market;
 pub mod watchlist;
 
+pub use fusion_domain::{Decimal, Price, Quantity};
 pub use market::{Book, Level, Quote};

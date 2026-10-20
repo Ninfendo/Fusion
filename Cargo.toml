@@ -19,6 +19,13 @@ serde_json = "1.0.154"
 fusion-layout = { path = "crates/fusion-layout" }
 fusion-theme = { path = "crates/fusion-theme" }
 fusion-client-core = { path = "crates/fusion-client-core" }
+fusion-egui-theme = { path = "crates/fusion-egui-theme" }
+fusion-egui-dock = { path = "crates/fusion-egui-dock" }
+fusion-ui-egui = { path = "crates/fusion-ui-egui" }
+egui = "0.37.0"
+eframe = { version = "0.37.0", features = ["persistence"] }
+egui_tiles = "0.18.0"
+egui_kittest = { version = "0.37.0", features = ["eframe"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -38,6 +45,11 @@ unimplemented = "warn"
 
 # Many small crates: without LTO, small non-generic functions are not inlined
 # across crate boundaries, which costs speed in hot loops.
+# Debug builds: optimise the libraries (egui, wgpu and so on) once, so the
+# app runs smoothly during development while our own code builds fast.
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.release]
 lto = "fat"
 codegen-units = 1

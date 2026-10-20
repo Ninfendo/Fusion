@@ -37,6 +37,7 @@ cargo test --workspace                                         # all tests
 cargo clippy --workspace --all-targets                         # lints
 cargo fmt --all                                                # format
 cargo build --target wasm32-unknown-unknown -p fusion-domain   # browser build check
+cargo run -p fusion-window                                     # the desktop app: the dock with demo panels
 cargo run -p fusion-server                                     # the server (a stub for now)
 ```
 
@@ -54,11 +55,18 @@ run happens every week.
 | Path | What it is |
 | --- | --- |
 | `crates/fusion-domain` | Core types: time, instruments, orders, events. No I/O; builds for wasm32. |
+| `crates/fusion-layout` | The layout model: windows, dock trees, panels, as versioned JSON. |
+| `crates/fusion-theme` | Colour tokens, dark and light, with a colour-blind option. |
+| `crates/fusion-client-core` | Presentation models and the demo market. No UI library. |
+| `crates/fusion-egui-theme` | Maps the colour tokens onto egui. |
+| `crates/fusion-egui-dock` | Draws a layout with egui_tiles and reads the user's edits back. |
+| `crates/fusion-ui-egui` | The panels, the panel registry and the app. |
+| `apps/fusion-window` | The desktop app. |
 | `apps/fusion-server` | The server binary. |
 | `docs/` | Architecture and design notes. |
 
-More crates arrive with each milestone: protocol, view server, venue adapters,
-persistence, rules, the client core and the UI.
+More crates arrive with each milestone: protocol, view server, venue
+adapters, persistence and rules.
 
 ## Licence
 

@@ -5,6 +5,10 @@
 all-features = true
 
 [advisories]
+# Security advisories block for every crate. "Unmaintained" notices block
+# only for crates we depend on directly: a crate deep inside egui's tree is
+# egui's to replace, and we cannot.
+unmaintained = "workspace"
 ignore = []
 
 [licenses]
@@ -20,11 +24,15 @@ allow = [
     "Zlib",
     "CC0-1.0",
     "Unicode-3.0",
+    "BSL-1.0",
 ]
 confidence-threshold = 0.8
 # The allow list is policy, not a record of what is in use today.
 unused-allowed-license = "allow"
-exceptions = []
+# Font licences, for the fonts egui ships and nothing else.
+exceptions = [
+    { name = "epaint_default_fonts", allow = ["OFL-1.1", "Ubuntu-font-1.0"] },
+]
 
 [bans]
 multiple-versions = "warn"

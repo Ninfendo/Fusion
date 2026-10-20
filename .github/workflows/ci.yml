@@ -128,7 +128,7 @@ jobs:
     name: Mutation testing (changed code)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       # A mutant that does not compile cleanly is skipped, not a failure.
       RUSTFLAGS: ""
