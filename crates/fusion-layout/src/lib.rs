@@ -35,6 +35,18 @@ impl WindowId {
     pub const MAIN: Self = Self(1);
 }
 
+impl std::fmt::Display for PanelId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::fmt::Display for WindowId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// One panel: what it shows and its own settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Panel {
