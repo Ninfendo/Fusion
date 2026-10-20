@@ -1270,6 +1270,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fusion-hub"
+version = "0.0.1"
+dependencies = [
+ "fusion-client-core",
+ "fusion-layout",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fusion-layout"
 version = "0.0.1"
 dependencies = [

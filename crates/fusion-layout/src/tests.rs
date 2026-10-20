@@ -502,6 +502,7 @@ fn errors_read_as_sentences() {
             },
             "the next panel id 2 must be above the highest id in use, 3",
         ),
+        (LayoutError::UnknownLink(3), "there is no link 3"),
         (
             LayoutError::NotPoppedOut(PanelId(4)),
             "panel 4 is not popped out",
