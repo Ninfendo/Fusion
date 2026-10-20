@@ -39,6 +39,12 @@ pub enum LayoutError {
     },
     /// A split share is zero, negative or not a number.
     BadShare(f32),
+    /// A link has no target panels.
+    LinkWithoutTargets(PanelId),
+    /// A link points back at the panel it starts from.
+    LinkToItself(PanelId),
+    /// A link names the same target panel twice.
+    LinkTargetTwice(PanelId),
     /// The next panel id is not above every panel id in use.
     NextIdTooLow {
         /// The next panel id in the layout.
@@ -67,6 +73,9 @@ impl fmt::Display for LayoutError {
                 write!(f, "active tab {active} is out of range for {tabs} tabs")
             }
             Self::BadShare(share) => write!(f, "split share {share} must be above zero"),
+            Self::LinkWithoutTargets(id) => write!(f, "a link from panel {} has no targets", id.0),
+            Self::LinkToItself(id) => write!(f, "panel {} cannot link to itself", id.0),
+            Self::LinkTargetTwice(id) => write!(f, "panel {} is a link target twice", id.0),
             Self::NextIdTooLow { next, highest } => write!(
                 f,
                 "the next panel id {} must be above the highest id in use, {}",

@@ -7,6 +7,7 @@
 //! a broken file is refused instead of drawing a broken screen.
 
 mod error;
+mod links;
 mod node;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -14,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 pub use error::LayoutError;
+pub use links::{ContextType, Gesture, Link, LinkColour, LinkMode};
 pub use node::{Child, Direction, Node};
 
 /// The id of a panel. Unique within a layout, and never reused.
@@ -96,6 +98,12 @@ pub struct Layout {
     /// The id the next new panel gets. It only goes up, so an id is never
     /// reused, even after its panel is closed.
     pub next_panel_id: PanelId,
+    /// Links between panels, in the order they were made.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<Link>,
+    /// Colour groups: panels in the same group follow each other.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub groups: BTreeMap<PanelId, LinkColour>,
 }
 
 /// Just the version, read before anything else.
@@ -106,7 +114,11 @@ struct VersionOnly {
 
 impl Layout {
     /// The format version this build writes and reads.
-    pub const SCHEMA_VERSION: u32 = 1;
+    pub const SCHEMA_VERSION: u32 = 2;
+
+    /// The oldest format this build still reads. Format 1 had no links and
+    /// no colour groups; they load empty.
+    pub const OLDEST_READABLE: u32 = 1;
 
     /// A layout with one empty main window.
     pub fn new(title: impl Into<String>) -> Self {
@@ -120,6 +132,8 @@ impl Layout {
             }],
             panels: BTreeMap::new(),
             next_panel_id: PanelId(1),
+            links: Vec::new(),
+            groups: BTreeMap::new(),
         }
     }
 
@@ -185,7 +199,43 @@ impl Layout {
                 .take()
                 .and_then(|root| root.without_panel(id).simplified());
         }
+        self.links.retain_mut(|link| {
+            link.to.retain(|target| *target != id);
+            link.from != id && !link.to.is_empty()
+        });
+        self.groups.remove(&id);
         Ok(panel)
+    }
+
+    /// Puts a panel in a colour group, or takes it out with `None`.
+    pub fn set_group(
+        &mut self,
+        panel: PanelId,
+        colour: Option<LinkColour>,
+    ) -> Result<(), LayoutError> {
+        if !self.panels.contains_key(&panel) {
+            return Err(LayoutError::UnknownPanel(panel));
+        }
+        match colour {
+            Some(colour) => self.groups.insert(panel, colour),
+            None => self.groups.remove(&panel),
+        };
+        Ok(())
+    }
+
+    /// Adds a link, after checking it.
+    pub fn add_link(&mut self, link: Link) -> Result<(), LayoutError> {
+        self.links.push(link);
+        if let Err(err) = self.validate_links() {
+            self.links.pop();
+            return Err(err);
+        }
+        Ok(())
+    }
+
+    /// Removes the link at `index`, if there is one.
+    pub fn remove_link(&mut self, index: usize) -> Option<Link> {
+        (index < self.links.len()).then(|| self.links.remove(index))
     }
 
     /// Checks the whole layout: the version, unique window ids, every panel
@@ -219,10 +269,39 @@ impl Layout {
                 self.place_panels(root, &mut placed)?;
             }
         }
-        match self.panels.keys().find(|id| !placed.contains(id)) {
-            Some(id) => Err(LayoutError::PanelNotPlaced(*id)),
-            None => Ok(()),
+        if let Some(id) = self.panels.keys().find(|id| !placed.contains(id)) {
+            return Err(LayoutError::PanelNotPlaced(*id));
         }
+        self.validate_links()
+    }
+
+    /// Checks links and groups: known panels, at least one target, no link
+    /// to its own panel, no target twice.
+    fn validate_links(&self) -> Result<(), LayoutError> {
+        let known = |id: &PanelId| {
+            if self.panels.contains_key(id) {
+                Ok(())
+            } else {
+                Err(LayoutError::UnknownPanel(*id))
+            }
+        };
+        for link in &self.links {
+            known(&link.from)?;
+            if link.to.is_empty() {
+                return Err(LayoutError::LinkWithoutTargets(link.from));
+            }
+            let mut seen = BTreeSet::new();
+            for target in &link.to {
+                known(target)?;
+                if *target == link.from {
+                    return Err(LayoutError::LinkToItself(link.from));
+                }
+                if !seen.insert(*target) {
+                    return Err(LayoutError::LinkTargetTwice(*target));
+                }
+            }
+        }
+        self.groups.keys().try_for_each(known)
     }
 
     /// Records the panels of one tree, refusing unknown and doubled ones.
@@ -247,14 +326,16 @@ impl Layout {
     pub fn from_json(text: &str) -> Result<Self, LayoutError> {
         let version: VersionOnly =
             serde_json::from_str(text).map_err(|e| LayoutError::Json(e.to_string()))?;
-        if version.schema_version != Self::SCHEMA_VERSION {
+        if !(Self::OLDEST_READABLE..=Self::SCHEMA_VERSION).contains(&version.schema_version) {
             return Err(LayoutError::UnsupportedVersion {
                 found: version.schema_version,
                 supported: Self::SCHEMA_VERSION,
             });
         }
-        let layout: Self =
+        let mut layout: Self =
             serde_json::from_str(text).map_err(|e| LayoutError::Json(e.to_string()))?;
+        // Older formats only lack fields that load as empty: upgrade in place.
+        layout.schema_version = Self::SCHEMA_VERSION;
         layout.validate()?;
         Ok(layout)
     }
