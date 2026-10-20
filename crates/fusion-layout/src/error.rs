@@ -45,6 +45,13 @@ pub enum LayoutError {
     LinkToItself(PanelId),
     /// A link names the same target panel twice.
     LinkTargetTwice(PanelId),
+    /// Pop in was asked for a panel that is in the main window and was
+    /// never popped out.
+    NotPoppedOut(PanelId),
+    /// Pop out was asked for a panel that is already alone in a window.
+    AlreadyAlone(PanelId),
+    /// The main window cannot be closed while the app runs.
+    MainWindowStays,
     /// The next panel id is not above every panel id in use.
     NextIdTooLow {
         /// The next panel id in the layout.
@@ -76,6 +83,11 @@ impl fmt::Display for LayoutError {
             Self::LinkWithoutTargets(id) => write!(f, "a link from panel {} has no targets", id.0),
             Self::LinkToItself(id) => write!(f, "panel {} cannot link to itself", id.0),
             Self::LinkTargetTwice(id) => write!(f, "panel {} is a link target twice", id.0),
+            Self::NotPoppedOut(id) => write!(f, "panel {} is not popped out", id.0),
+            Self::AlreadyAlone(id) => {
+                write!(f, "panel {} is already alone in its own window", id.0)
+            }
+            Self::MainWindowStays => f.write_str("the main window cannot be closed"),
             Self::NextIdTooLow { next, highest } => write!(
                 f,
                 "the next panel id {} must be above the highest id in use, {}",

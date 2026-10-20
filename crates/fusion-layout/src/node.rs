@@ -125,6 +125,50 @@ impl Node {
         }
     }
 
+    /// Where a panel sits in its tab group: a neighbour tab in the same
+    /// group (the next one, else the one before) and the panel's index.
+    /// `None` if the panel is not a tab in this subtree.
+    pub(crate) fn tab_position(&self, id: PanelId) -> Option<(Option<PanelId>, usize)> {
+        match self {
+            Self::Panel { .. } => None,
+            Self::Tabs { children, .. } => {
+                let Some(index) = children.iter().position(|c| *c == Self::panel(id)) else {
+                    return children.iter().find_map(|c| c.tab_position(id));
+                };
+                let neighbour = |c: &Node| match c {
+                    Self::Panel { id: p } => Some(*p),
+                    _ => None,
+                };
+                let after = children[index + 1..].iter().find_map(neighbour);
+                let before = children[..index].iter().rev().find_map(neighbour);
+                Some((after.or(before), index))
+            }
+            Self::Split { children, .. } => children.iter().find_map(|c| c.node.tab_position(id)),
+        }
+    }
+
+    /// Inserts a panel into the tab group that holds `beside`, at `index`
+    /// (or last), and shows it. Returns false if no tab group holds `beside`.
+    pub(crate) fn insert_beside(&mut self, beside: PanelId, id: PanelId, index: usize) -> bool {
+        match self {
+            Self::Panel { .. } => false,
+            Self::Tabs { active, children } => {
+                if !children.contains(&Self::panel(beside)) {
+                    return children
+                        .iter_mut()
+                        .any(|c| c.insert_beside(beside, id, index));
+                }
+                let at = index.min(children.len());
+                children.insert(at, Self::panel(id));
+                *active = at;
+                true
+            }
+            Self::Split { children, .. } => children
+                .iter_mut()
+                .any(|c| c.node.insert_beside(beside, id, index)),
+        }
+    }
+
     /// Adds a panel as the last tab of the first tab group, depth first.
     /// Returns false if the tree has no tab group.
     pub(crate) fn add_to_first_tabs(&mut self, id: PanelId) -> bool {
