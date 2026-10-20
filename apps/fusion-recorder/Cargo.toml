@@ -1,0 +1,19 @@
+[package]
+name = "fusion-recorder"
+description = "Records Binance market data to Parquet files, and checks a recording: gaps, and books rebuilt to the same fingerprints."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+fusion-domain.workspace = true
+fusion-recording.workspace = true
+fusion-venue-binance.workspace = true
+tokio = { workspace = true, features = ["signal"] }
+
+[lints]
+workspace = true

@@ -1534,6 +1534,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fusion-recorder"
+version = "0.0.1"
+dependencies = [
+ "fusion-domain",
+ "fusion-recording",
+ "fusion-venue-binance",
+ "tokio",
+]
+
+[[package]]
 name = "fusion-recording"
 version = "0.0.1"
 dependencies = [
@@ -4236,6 +4246,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

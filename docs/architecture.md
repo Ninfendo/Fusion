@@ -162,6 +162,34 @@ and drop copy, self-service with a GitHub login.
 - Binance cut back its EU service from 1 July 2026. Choose the real-money
   venue (Deribit allows Sweden) before the last milestone.
 
+## Market data
+
+Built in milestone 3 (`fusion-venue-binance`, `fusion-recording`,
+`fusion-recorder`).
+
+- **In:** one WebSocket connection carries every instrument's
+  `aggTrade`, `depth@100ms` and `bookTicker` streams. The testnet by
+  default; Binance's public market-data endpoint (the real market, read
+  only, no key) with `--venue public`.
+- **Books** follow Binance's documented procedure: buffer the changes, take a
+  REST snapshot, drop what the snapshot already has, and start again from a
+  new snapshot on any gap. Trades carry numbers; missed ones are fetched
+  from `/api/v3/aggTrades`, which needs no key.
+- **The 24-hour limit:** Binance closes a connection after 24 hours. At 23
+  hours, or at its `serverShutdown` notice, a second connection opens. While
+  both run, data that fits passes from either, data that comes early is
+  parked until the missing part arrives, and data already seen is dropped.
+  So the switch loses nothing, whichever connection is ahead.
+- **Recordings** are Parquet files, one row per event, a new file every 5
+  minutes; a file being written is `.parquet.partial` until complete. Every
+  10 seconds each live book's fingerprint (`OrderBook::digest`, FNV-1a, the
+  same in every build) is recorded too, so a replay proves it rebuilt the
+  very same book. `fusion-recorder check` replays a recording and says CLEAN
+  only with no missing trade, no hole in a book, every fingerprint matched,
+  no book that had to start again, and no silence over a minute.
+- **Cost:** the recorder uses about 15 MB of memory for 12 testnet symbols,
+  and writes about 70 KB of Parquet a minute (about 100 MB a day).
+
 ## Rules and algos
 
 - A scanner rule is a universe, declared features, a CEL condition and an

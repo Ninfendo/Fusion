@@ -40,6 +40,8 @@ cargo build --target wasm32-unknown-unknown -p fusion-domain   # browser build c
 cargo build -p fusion-window -p fusion-launcher && target/debug/fusion-launcher   # the desktop app, one process per window
 cargo run -p fusion-window                                     # the desktop app in one window, without the launcher
 cd apps/fusion-web && trunk serve --release                   # the same app in the browser (needs Trunk)
+cargo run -p fusion-recorder -- record --for-minutes 10            # record Binance testnet market data to ./recordings
+cargo run -p fusion-recorder -- check recordings                   # replay a recording: gaps, and books rebuilt to the same fingerprints
 cargo run -p fusion-server                                     # the server (a stub for now)
 ```
 
@@ -63,6 +65,8 @@ run happens every week.
 | `crates/fusion-hub` | The hub between windows: it owns the layout and the links, as messages in and out. No I/O. |
 | `crates/fusion-pipe` | The hub messages over a local socket between the window processes and the launcher. Desktop only. |
 | `crates/fusion-launch` | The launcher's logic: the hub over pipes, one process per window, restarts, the layout file. Desktop only. |
+| `crates/fusion-venue-binance` | Binance market data: the live connection, its messages read into market events, order books kept in sync, missed trades fetched. |
+| `crates/fusion-recording` | Market data recordings in Parquet, and a replay that checks the books it rebuilds. |
 | `crates/fusion-egui-theme` | Maps the colour tokens onto egui. |
 | `crates/fusion-egui-dock` | Draws a layout with egui_tiles and reads the user's edits back. |
 | `crates/fusion-ui-egui` | The panels, the panel registry and the app. |
@@ -70,6 +74,7 @@ run happens every week.
 | `apps/fusion-window` | One desktop window. On its own, the whole app in one window. |
 | `apps/fusion-web` | The same app in the browser, built with [Trunk](https://trunk-rs.github.io/trunk/). Pop out opens a browser window. |
 | `scripts/browser-smoke.mjs` | The browser smoke test CI runs in a headless Chrome. |
+| `apps/fusion-recorder` | Records market data to Parquet, and checks a recording. |
 | `apps/fusion-server` | The server binary. |
 | `docs/` | Architecture and design notes. |
 

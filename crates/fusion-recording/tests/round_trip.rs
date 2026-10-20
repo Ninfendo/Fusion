@@ -193,6 +193,7 @@ fn a_replay_rebuilds_the_same_books_and_finds_no_gaps() {
         report.span,
         Some((at_ms(0), at_ms(100 * (rows.len() as i64 - 1))))
     );
+    assert_eq!(report.longest_silence, Some((at_ms(0), 100_000_000)));
     let book = &report.instruments[&btc];
     assert_eq!((book.snapshots, book.deltas, book.tops), (2, 10, 1));
     assert_eq!((book.checks_passed, book.checks_failed.len()), (1, 0));
@@ -248,6 +249,10 @@ fn a_replay_shows_holes_and_wrong_books() {
     }
     let report = replay.finish();
     assert!(!report.is_clean());
+    assert_eq!(
+        report.longest_silence, None,
+        "every row came at the same time"
+    );
     let btc = &report.instruments[&BTC];
     assert_eq!(
         btc.book_gaps, 5,
