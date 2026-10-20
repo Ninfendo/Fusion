@@ -60,7 +60,7 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       # Every crate the browser client will use must build for wasm32.
-      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout
+      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout -p fusion-theme -p fusion-client-core
 
   deny:
     name: Licences and advisories
