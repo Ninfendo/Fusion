@@ -143,6 +143,29 @@ and drop copy, self-service with a GitHub login.
   parent and child orders. Every child order passes the risk checks.
 - Rules and algos are versioned, never edited in place.
 
+## Crate map
+
+One workspace, many crates: a crate is the Rust equivalent of a .NET project,
+and the workspace is the solution. Cargo refuses circular dependencies, so the
+layers below are checked by the compiler. A crate is created when its
+milestone needs it, not before.
+
+| Layer | Crates | May depend on |
+| --- | --- | --- |
+| Domain (no I/O, builds for wasm32) | `fusion-domain` (types, orders, journal, port traits such as `Clock` and `ExecutionClient`), `fusion-protocol` (wire messages) | Nothing of ours |
+| Server core | `fusion-engine` (orders, risk, algos), `fusion-viewserver`, `fusion-rules`, `fusion-sim` | Domain, protocol |
+| Adapters | `fusion-venue-binance`, `fusion-venue-deribit`, `fusion-fix`, `fusion-persistence-pg` | Domain only, never the engine |
+| Client | `fusion-client-core`, `fusion-ui-egui` | Domain, protocol, never server crates |
+| Apps (composition roots) | `fusion-server`, `fusion-launcher`, `fusion-window`, `fusion-web` | What they wire |
+
+- Adapters implement traits from `fusion-domain` (ports and adapters), so an
+  adapter never depends on the engine.
+- The client and the server share only the domain and the protocol.
+- Code with its own life lives in its own repo: the HotFIX fork is
+  `Ninfendo/hotfix`, used as a git dependency until upstream takes the change.
+- Release builds use fat LTO and one codegen unit, so the crate boundaries
+  cost nothing at runtime.
+
 ## Code patterns
 
 ### Presentation model and one-way data flow

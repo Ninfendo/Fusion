@@ -19,3 +19,10 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Many small crates: without LTO, small non-generic functions are not inlined
+# across crate boundaries, which costs speed in hot loops.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+debug = "line-tables-only"
