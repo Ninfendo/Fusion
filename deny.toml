@@ -33,6 +33,9 @@ unused-allowed-license = "allow"
 # Font licences, for the fonts egui ships and nothing else.
 exceptions = [
     { name = "epaint_default_fonts", allow = ["OFL-1.1", "Ubuntu-font-1.0"] },
+    # Mozilla's list of root certificates, as data. reqwest's certificate
+    # check uses it where the system has no list of its own.
+    { name = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
 ]
 
 [bans]

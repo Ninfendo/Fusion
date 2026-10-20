@@ -1,6 +1,6 @@
 [package]
 name = "fusion-venue-binance"
-description = "Binance market data: its stream and REST messages turned into Fusion market events, with order books kept in sync and missed trades found."
+description = "Binance market data: the live connection, its stream and REST messages turned into Fusion market events, order books kept in sync and missed trades found."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,7 +13,15 @@ publish.workspace = true
 fusion-domain.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
+futures-util.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["net"] }
 
 [lints]
 workspace = true
