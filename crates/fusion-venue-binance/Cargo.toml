@@ -1,0 +1,19 @@
+[package]
+name = "fusion-venue-binance"
+description = "Binance market data: its stream and REST messages turned into Fusion market events, with order books kept in sync and missed trades found."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+fusion-domain.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -24,6 +24,7 @@ fusion-client-core = { path = "crates/fusion-client-core" }
 fusion-hub = { path = "crates/fusion-hub" }
 fusion-pipe = { path = "crates/fusion-pipe" }
 fusion-launch = { path = "crates/fusion-launch" }
+fusion-venue-binance = { path = "crates/fusion-venue-binance" }
 fusion-egui-theme = { path = "crates/fusion-egui-theme" }
 fusion-egui-dock = { path = "crates/fusion-egui-dock" }
 fusion-ui-egui = { path = "crates/fusion-ui-egui" }

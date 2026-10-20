@@ -93,6 +93,31 @@ pub struct BookDelta {
     pub asks: Vec<Level>,
 }
 
+/// One piece of market data, in the order it happened.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MarketEvent {
+    /// A trade.
+    Trade(Trade),
+    /// New best prices.
+    Top(TopOfBook),
+    /// A whole book: the start, or a new start after a gap.
+    Snapshot(BookSnapshot),
+    /// Changes to a book.
+    Delta(BookDelta),
+}
+
+impl MarketEvent {
+    /// The instrument the event is about.
+    pub fn instrument(&self) -> InstrumentId {
+        match self {
+            Self::Trade(t) => t.instrument,
+            Self::Top(t) => t.instrument,
+            Self::Snapshot(s) => s.instrument,
+            Self::Delta(d) => d.instrument,
+        }
+    }
+}
+
 /// What [`OrderBook::apply`] did with a delta.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeltaOutcome {

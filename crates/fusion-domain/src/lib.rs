@@ -17,8 +17,8 @@ pub use ids::{ClOrdId, ExecId, InstrumentId, OrderId};
 pub use instrument::{Instrument, InstrumentError};
 pub use journal::{Entry, Journal, JournalError, MemoryJournal};
 pub use market::{
-    BookDelta, BookGap, BookSnapshot, DeltaOutcome, Level, OrderBook, Seen, TopOfBook, Trade,
-    TradeSequence,
+    BookDelta, BookGap, BookSnapshot, DeltaOutcome, Level, MarketEvent, OrderBook, Seen, TopOfBook,
+    Trade, TradeSequence,
 };
 pub use num::{Decimal, Price, Quantity, notional};
 pub use order::{
