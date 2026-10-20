@@ -42,6 +42,9 @@ pub struct ReplayReport {
     pub rows: u64,
     /// The first and the last receive time.
     pub span: Option<(Timestamp, Timestamp)>,
+    /// The longest time between two rows, in nanoseconds, and when it
+    /// started. A recorder that was down shows here.
+    pub longest_silence: Option<(Timestamp, i64)>,
     /// Per instrument.
     pub instruments: BTreeMap<InstrumentId, SymbolReport>,
 }
@@ -70,6 +73,13 @@ impl Replay {
     /// Takes the next row.
     pub fn apply(&mut self, row: &Row) {
         self.report.rows += 1;
+        if let Some((_, last)) = self.report.span {
+            let silence = row.received.unix_nanos().saturating_sub(last.unix_nanos());
+            let longest = self.report.longest_silence.map_or(0, |(_, n)| n);
+            if silence > longest {
+                self.report.longest_silence = Some((last, silence));
+            }
+        }
         self.report.span = Some(match self.report.span {
             None => (row.received, row.received),
             Some((first, last)) => (first.min(row.received), last.max(row.received)),

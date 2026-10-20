@@ -10,3 +10,5 @@
 /pr.diff
 /lcov.info
 /apps/fusion-web/dist
+# The recorder's default output folder.
+/recordings
