@@ -143,6 +143,62 @@ and drop copy, self-service with a GitHub login.
   parent and child orders. Every child order passes the risk checks.
 - Rules and algos are versioned, never edited in place.
 
+## Code patterns
+
+### Presentation model and one-way data flow
+
+This is Fusion's equivalent of MVVM with a Presentation Model.
+
+- Each panel has a **presentation model** in `client-core`: a plain struct that
+  holds all view state (field text, selection, errors, what is enabled). It
+  has no UI types in it.
+- The **view** reads the model and draws. It never changes the model. It
+  reports what the user did as an `Action` value.
+- `update(&mut self, action) -> Vec<Effect>` applies an action. It does no
+  I/O. Effects (send an order, publish a context, save a layout) are carried
+  out by the code around it. So every panel is testable without a UI, and
+  replayable.
+- Server events reach the UI thread through a channel and are applied to the
+  models at the start of each frame.
+
+| WPF | Fusion |
+| --- | --- |
+| ViewModel / Presentation Model | A struct in `client-core` |
+| Binding and INotifyPropertyChanged | Not needed: egui re-reads the model every frame |
+| ICommand / CanExecute | An `Action` enum / a method such as `can_submit()` |
+| Converters | Formatting functions in `client-core` |
+| DataTemplate per type | The panel registry |
+| Dispatcher.BeginInvoke | A channel drained at the start of each frame |
+| Messenger / EventAggregator | The `WorkspaceBus` hub between windows |
+
+### Wiring
+
+This is Fusion's equivalent of an IoC container. There is no container crate.
+
+- One **composition root** per binary (`main.rs` of the server, the launcher
+  and the window process) builds every service and passes it in.
+- **Constructor injection.** Generics in the hot path (the order core), for
+  zero runtime cost. `Arc<dyn Trait>` at the edges (venues, storage), for
+  runtime choice.
+- **Lifetimes are explicit:** a singleton is one shared `Arc`; a per-session
+  object is owned by the session.
+- **Swap an implementation** with a `match` on the config at startup, or with
+  a Cargo feature at compile time.
+- **Registries** for what the layout names at runtime: panel types and venues.
+- **Cross-cutting concerns** (logging, metrics, retry) are decorators that wrap
+  the real implementation and implement the same trait, plus `tracing`.
+- **Tests** wire the same types with fakes, such as `ManualClock`.
+
+## Performance rules
+
+- Nothing blocks the order core. I/O happens at the edges, on other threads.
+- Conflate before sending: the view server sends at a fixed rate per
+  viewport, never one message per tick.
+- Compile expressions (CEL filters, rule conditions) once, and evaluate them
+  only for rows whose inputs changed.
+- Avoid an allocation per message in hot loops: reuse buffers.
+- Measure before optimising, with latency histograms (`hdrhistogram`).
+
 ## Determinism rules
 
 - The engine reads time only through the `Clock` trait in `fusion-domain`.
