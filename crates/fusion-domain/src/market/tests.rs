@@ -194,3 +194,35 @@ fn a_trade_is_plain_data() {
     assert_eq!(trade, trade.clone());
     assert!(top.bid.price < top.ask.price);
 }
+
+#[test]
+fn every_event_names_its_instrument() {
+    let eth = InstrumentId(2);
+    let trade = Trade {
+        instrument: eth,
+        id: 1,
+        price: "1".parse().expect("a price"),
+        quantity: "1".parse().expect("a quantity"),
+        taker: Side::Sell,
+        time: Timestamp::UNIX_EPOCH,
+    };
+    let top = TopOfBook {
+        instrument: eth,
+        update_id: 1,
+        bid: level("1", "1"),
+        ask: level("2", "1"),
+    };
+    let events = [
+        MarketEvent::Trade(trade),
+        MarketEvent::Top(top),
+        MarketEvent::Snapshot(BookSnapshot {
+            instrument: eth,
+            ..snapshot(1)
+        }),
+        MarketEvent::Delta(BookDelta {
+            instrument: eth,
+            ..delta(1, 1, vec![], vec![])
+        }),
+    ];
+    assert!(events.iter().all(|e| e.instrument() == eth));
+}
