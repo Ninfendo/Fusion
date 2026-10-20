@@ -31,6 +31,7 @@ egui = "0.37.0"
 eframe = { version = "0.37.0", features = ["persistence"] }
 egui_tiles = "0.18.0"
 egui_kittest = "0.37.0"
+js-sys = "0.3.106"
 wasm-bindgen-futures = "0.4.79"
 web-sys = "0.3.106"
 

@@ -1353,7 +1353,11 @@ name = "fusion-web"
 version = "0.0.1"
 dependencies = [
  "eframe",
+ "fusion-client-core",
+ "fusion-hub",
+ "fusion-layout",
  "fusion-ui-egui",
+ "js-sys",
  "wasm-bindgen-futures",
  "web-sys",
 ]

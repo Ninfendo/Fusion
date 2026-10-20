@@ -3,11 +3,13 @@
 
 use fusion_client_core::links::{Context, LinkRouter};
 use fusion_layout::{Gesture, Layout, LayoutError, Node, Panel, PanelId, WindowId};
+use serde::{Deserialize, Serialize};
 
 use crate::protocol::{Fdc3Context, FromHub, ToHub};
 
 /// Who a hub message is for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Address {
     /// Every window.
     All,
