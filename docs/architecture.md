@@ -93,6 +93,12 @@ The client is built from these blocks from the start, not later.
   on Windows, Unix sockets elsewhere); in the browser tabs use
   BroadcastChannel, with Web Locks to pick the layout owner. Data never goes
   window to window: each window gets it from the view server.
+- **The hub owns the layout.** A window never changes the layout itself. It
+  sends a message (`ToHub`) through its `Bus` and takes the layout the hub
+  sends back (`FromHub`). The hub (`fusion-hub`) does no I/O, so the same
+  code runs in the launcher and, for a single window or a browser tab, inside
+  the window (`LocalBus`). A window that starts again says hello and gets
+  its panels and their last contexts back.
 - **Configurable links.** A link is a rule in the layout: from a panel, a
   context type, to one or more panels, with a mode (`all`, `round-robin`,
   `last-focused`) and an optional gesture (for example Shift+click). Colour
@@ -155,7 +161,7 @@ milestone needs it, not before.
 | Domain (no I/O, builds for wasm32) | `fusion-domain` (types, orders, journal, port traits such as `Clock` and `ExecutionClient`), `fusion-protocol` (wire messages) | Nothing of ours |
 | Server core | `fusion-engine` (orders, risk, algos), `fusion-viewserver`, `fusion-rules`, `fusion-sim` | Domain, protocol |
 | Adapters | `fusion-venue-binance`, `fusion-venue-deribit`, `fusion-fix`, `fusion-persistence-pg` | Domain only, never the engine |
-| Client models (no UI library, build for wasm32) | `fusion-client-core` (presentation models, protocol client, links, hub), `fusion-layout` (windows, dock tree, panels, links, versioned save format), `fusion-theme` (tokens), `fusion-chart-model` (candles, studies, scales) | Domain, protocol, never server crates |
+| Client models (no UI library, build for wasm32) | `fusion-client-core` (presentation models, protocol client, links), `fusion-hub` (the hub between windows and its messages, no I/O), `fusion-layout` (windows, dock tree, panels, links, versioned save format), `fusion-theme` (tokens), `fusion-chart-model` (candles, studies, scales) | Domain, protocol, never server crates |
 | Client drawing (egui) | `fusion-egui-dock`, `fusion-egui-theme`, `fusion-egui-controls` (price input, grid, L2 ladder, ticket parts), `fusion-egui-charts`, `fusion-ui-egui` (panels and the panel registry) | Client models, egui |
 | Apps (composition roots) | `fusion-server`, `fusion-launcher`, `fusion-window`, `fusion-web` | What they wire |
 
@@ -197,7 +203,7 @@ This is Fusion's equivalent of MVVM with a Presentation Model.
 | Converters | Formatting functions in `client-core` |
 | DataTemplate per type | The panel registry |
 | Dispatcher.BeginInvoke | A channel drained at the start of each frame |
-| Messenger / EventAggregator | The `WorkspaceBus` hub between windows |
+| Messenger / EventAggregator | The `fusion-hub` messages, sent through a `Bus` |
 
 ### Wiring
 

@@ -125,13 +125,18 @@ impl Host<'_> {
         ui.horizontal(|ui| {
             self.group_chip(ui, id);
             if self.can_move {
-                for move_to in offered_moves(self.layout, self.window, id) {
-                    if ui.button(move_to.label()).clicked() {
-                        self.frame.moves.push((id, move_to));
-                    }
-                }
+                self.move_buttons(ui, id);
             }
         });
+    }
+
+    /// Pop out and pop in, where they work.
+    fn move_buttons(&mut self, ui: &mut egui::Ui, id: PanelId) {
+        for move_to in offered_moves(self.layout, self.window, id) {
+            if ui.button(move_to.label()).clicked() {
+                self.frame.moves.push((id, move_to));
+            }
+        }
     }
 
     /// The link group picker.

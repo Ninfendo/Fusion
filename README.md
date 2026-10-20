@@ -59,6 +59,7 @@ run happens every week.
 | `crates/fusion-layout` | The layout model: windows, dock trees, panels, as versioned JSON. |
 | `crates/fusion-theme` | Colour tokens, dark and light, with a colour-blind option. |
 | `crates/fusion-client-core` | Presentation models and the demo market. No UI library. |
+| `crates/fusion-hub` | The hub between windows: it owns the layout and the links, as messages in and out. No I/O. |
 | `crates/fusion-egui-theme` | Maps the colour tokens onto egui. |
 | `crates/fusion-egui-dock` | Draws a layout with egui_tiles and reads the user's edits back. |
 | `crates/fusion-ui-egui` | The panels, the panel registry and the app. |
