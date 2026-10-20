@@ -16,6 +16,7 @@ fusion-domain = { path = "crates/fusion-domain" }
 rust_decimal = { version = "1.43", default-features = false, features = ["std"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+thiserror = "2.0.21"
 fusion-layout = { path = "crates/fusion-layout" }
 fusion-theme = { path = "crates/fusion-theme" }
 fusion-client-core = { path = "crates/fusion-client-core" }

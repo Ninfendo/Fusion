@@ -9,6 +9,7 @@
 mod error;
 mod links;
 mod node;
+mod windows;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,6 +18,7 @@ use serde::{Deserialize, Serialize};
 pub use error::LayoutError;
 pub use links::{ContextType, Gesture, Link, LinkColour, LinkMode};
 pub use node::{Child, Direction, Node};
+pub use windows::Origin;
 
 /// The id of a panel. Unique within a layout, and never reused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -33,6 +35,18 @@ impl WindowId {
     pub const MAIN: Self = Self(1);
 }
 
+impl std::fmt::Display for PanelId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::fmt::Display for WindowId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// One panel: what it shows and its own settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Panel {
@@ -45,6 +59,9 @@ pub struct Panel {
     /// The panel's own settings. Each panel kind reads and checks its own.
     #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
     pub config: serde_json::Value,
+    /// Where the panel was before it was popped out into its own window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<Origin>,
 }
 
 impl Panel {
@@ -54,6 +71,7 @@ impl Panel {
             kind: kind.into(),
             title: title.into(),
             config: serde_json::Value::Null,
+            origin: None,
         }
     }
 }

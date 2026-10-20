@@ -503,6 +503,18 @@ fn errors_read_as_sentences() {
             "the next panel id 2 must be above the highest id in use, 3",
         ),
         (
+            LayoutError::NotPoppedOut(PanelId(4)),
+            "panel 4 is not popped out",
+        ),
+        (
+            LayoutError::AlreadyAlone(PanelId(5)),
+            "panel 5 is already alone in its own window",
+        ),
+        (
+            LayoutError::MainWindowStays,
+            "the main window cannot be closed",
+        ),
+        (
             LayoutError::LinkWithoutTargets(PanelId(1)),
             "a link from panel 1 has no targets",
         ),
@@ -660,4 +672,234 @@ fn links_and_groups_survive_json() {
 fn colours_have_names() {
     let names: Vec<&str> = LinkColour::ALL.iter().map(|c| c.name()).collect();
     assert_eq!(names, ["Red", "Green", "Blue", "Yellow"]);
+}
+
+// --- Windows: pop out, pop in, close -----------------------------------------------
+
+fn main_tabs(layout: &Layout) -> Option<Node> {
+    layout.window(WindowId::MAIN).and_then(|w| w.root.clone())
+}
+
+#[test]
+fn popping_out_moves_a_panel_into_a_new_window() {
+    let mut layout = sample();
+    let window = layout.pop_out(PanelId(1)).expect("popped out");
+    assert_eq!(window, WindowId(2));
+    assert_eq!(layout.window_of(PanelId(1)), Some(WindowId(2)));
+    assert_eq!(layout.panels_in(WindowId(2)), [PanelId(1)]);
+    assert_eq!(layout.panels_in(WindowId::MAIN), [PanelId(2), PanelId(3)]);
+    assert_eq!(
+        layout.window(window).map(|w| w.title.as_str()),
+        Some("watchlist")
+    );
+    assert_eq!(
+        layout.panel(PanelId(1)).and_then(|p| p.origin),
+        Some(Origin {
+            window: WindowId::MAIN,
+            beside: Some(PanelId(2)),
+            index: 0,
+        })
+    );
+    assert_eq!(layout.validate(), Ok(()));
+}
+
+#[test]
+fn popping_in_puts_the_panel_back_in_its_old_place() {
+    let mut layout = sample();
+    let before = main_tabs(&layout);
+    layout.pop_out(PanelId(1)).expect("popped out");
+    assert_eq!(layout.pop_in(PanelId(1)), Ok(WindowId::MAIN));
+    assert_eq!(layout.windows.len(), 1, "the empty window goes away");
+    assert_eq!(main_tabs(&layout), before);
+    assert_eq!(layout.panel(PanelId(1)).and_then(|p| p.origin), None);
+    assert_eq!(layout.validate(), Ok(()));
+}
+
+#[test]
+fn the_last_tab_of_a_group_remembers_the_tab_before_it() {
+    let mut layout = sample();
+    layout.pop_out(PanelId(2)).expect("popped out");
+    assert_eq!(
+        layout.panel(PanelId(2)).and_then(|p| p.origin),
+        Some(Origin {
+            window: WindowId::MAIN,
+            beside: Some(PanelId(1)),
+            index: 1,
+        })
+    );
+    layout.pop_in(PanelId(2)).expect("popped in");
+    assert_eq!(
+        main_tabs(&layout),
+        main_tabs(&sample()).map(|n| {
+            // Pop in shows the returning tab.
+            let Node::Split {
+                direction,
+                mut children,
+            } = n
+            else {
+                unreachable!()
+            };
+            children[0].node = Node::Tabs {
+                active: 1,
+                children: vec![Node::panel(PanelId(1)), Node::panel(PanelId(2))],
+            };
+            Node::Split {
+                direction,
+                children,
+            }
+        })
+    );
+}
+
+#[test]
+fn a_panel_whose_neighbour_is_gone_joins_the_first_tab_group() {
+    let mut layout = sample();
+    layout.pop_out(PanelId(1)).expect("popped out");
+    layout.close_panel(PanelId(2)).expect("closed");
+    layout.pop_in(PanelId(1)).expect("popped in");
+    assert_eq!(layout.window_of(PanelId(1)), Some(WindowId::MAIN));
+    assert_eq!(layout.panels_in(WindowId::MAIN), [PanelId(3), PanelId(1)]);
+    assert_eq!(layout.validate(), Ok(()));
+}
+
+#[test]
+fn a_panel_popped_from_an_empty_main_window_comes_back() {
+    let mut layout = Layout::new("Fusion");
+    let id = layout
+        .add_panel(WindowId::MAIN, watchlist())
+        .expect("added");
+    layout.pop_out(id).expect("popped out");
+    assert_eq!(main_tabs(&layout), None);
+    layout.pop_in(id).expect("popped in");
+    assert_eq!(main_tabs(&layout), Some(Node::tabs(vec![Node::panel(id)])));
+}
+
+#[test]
+fn a_main_window_without_tabs_gets_a_group_beside_it() {
+    let mut layout = sample();
+    layout.pop_out(PanelId(1)).expect("popped out");
+    layout.windows[0].root = Some(Node::panel(PanelId(2)));
+    layout.close_panel(PanelId(3)).expect("closed");
+    if let Some(p) = layout.panels.get_mut(&PanelId(1)) {
+        p.origin = None;
+    }
+    layout.pop_in(PanelId(1)).expect("popped in");
+    assert_eq!(
+        main_tabs(&layout),
+        Some(Node::split(
+            Direction::Horizontal,
+            vec![
+                Node::panel(PanelId(2)),
+                Node::tabs(vec![Node::panel(PanelId(1))])
+            ]
+        ))
+    );
+}
+
+#[test]
+fn a_panel_whose_old_window_is_gone_goes_to_the_main_window() {
+    let mut layout = sample();
+    let second = layout.pop_out(PanelId(1)).expect("popped out");
+    layout
+        .add_panel(second, watchlist())
+        .expect("added to the second window");
+    layout
+        .pop_out(PanelId(4))
+        .expect("popped out of the second window");
+    layout.close_window(second).expect("closed");
+    layout.pop_in(PanelId(4)).expect("popped in");
+    assert_eq!(layout.window_of(PanelId(4)), Some(WindowId::MAIN));
+    assert_eq!(layout.validate(), Ok(()));
+}
+
+#[test]
+fn closing_a_window_pops_its_panels_back_in() {
+    let mut layout = sample();
+    let window = layout.pop_out(PanelId(3)).expect("popped out");
+    layout.add_panel(window, watchlist()).expect("added");
+    layout.close_window(window).expect("closed");
+    assert_eq!(layout.windows.len(), 1);
+    assert_eq!(layout.panels_in(WindowId::MAIN).len(), 4);
+    assert_eq!(layout.validate(), Ok(()));
+}
+
+#[test]
+fn the_main_window_and_unknown_windows_cannot_be_closed() {
+    let mut layout = sample();
+    assert_eq!(
+        layout.close_window(WindowId::MAIN),
+        Err(LayoutError::MainWindowStays)
+    );
+    assert_eq!(
+        layout.close_window(WindowId(7)),
+        Err(LayoutError::UnknownWindow(WindowId(7)))
+    );
+}
+
+#[test]
+fn pop_out_and_pop_in_refuse_what_makes_no_sense() {
+    let mut layout = sample();
+    assert_eq!(
+        layout.pop_out(PanelId(9)),
+        Err(LayoutError::UnknownPanel(PanelId(9)))
+    );
+    assert_eq!(
+        layout.pop_in(PanelId(9)),
+        Err(LayoutError::UnknownPanel(PanelId(9)))
+    );
+    assert_eq!(
+        layout.pop_in(PanelId(1)),
+        Err(LayoutError::NotPoppedOut(PanelId(1)))
+    );
+    layout.pop_out(PanelId(1)).expect("popped out");
+    assert_eq!(
+        layout.pop_out(PanelId(1)),
+        Err(LayoutError::AlreadyAlone(PanelId(1)))
+    );
+}
+
+#[test]
+fn new_windows_get_the_next_free_id() {
+    let mut layout = sample();
+    assert_eq!(layout.pop_out(PanelId(1)), Ok(WindowId(2)));
+    assert_eq!(layout.pop_out(PanelId(2)), Ok(WindowId(3)));
+    assert_eq!(layout.pop_out(PanelId(3)), Ok(WindowId(4)));
+    assert_eq!(layout.windows.len(), 4, "the main window stays, empty");
+}
+
+#[test]
+fn a_panel_in_a_bare_split_has_no_tab_position() {
+    let tree = Node::split(Direction::Vertical, vec![Node::panel(PanelId(1))]);
+    assert_eq!(tree.tab_position(PanelId(1)), None);
+    assert_eq!(Node::panel(PanelId(1)).tab_position(PanelId(1)), None);
+    let mut lone = Node::panel(PanelId(1));
+    assert!(!lone.insert_beside(PanelId(1), PanelId(2), 0));
+}
+
+#[test]
+fn insert_beside_clamps_the_index_and_shows_the_tab() {
+    let mut tabs = Node::tabs(vec![Node::panel(PanelId(1)), Node::panel(PanelId(2))]);
+    assert!(tabs.insert_beside(PanelId(2), PanelId(3), 9));
+    assert_eq!(
+        tabs,
+        Node::Tabs {
+            active: 2,
+            children: vec![
+                Node::panel(PanelId(1)),
+                Node::panel(PanelId(2)),
+                Node::panel(PanelId(3)),
+            ],
+        }
+    );
+    assert!(!tabs.insert_beside(PanelId(8), PanelId(4), 0));
+}
+
+#[test]
+fn origins_survive_json() {
+    let mut layout = sample();
+    layout.pop_out(PanelId(1)).expect("popped out");
+    let text = layout.to_json().expect("serialises");
+    assert!(text.contains("\"origin\""));
+    assert!(text.contains("\"beside\": 2"));
+    assert_eq!(Layout::from_json(&text), Ok(layout));
 }
