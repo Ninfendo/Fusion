@@ -8,7 +8,7 @@ use egui::{Color32, Stroke, StrokeKind, WidgetText};
 use fusion_client_core::demo::DemoMarket;
 use fusion_egui_dock::PanelHost;
 use fusion_egui_theme::color;
-use fusion_layout::{Layout, LinkColour, PanelId};
+use fusion_layout::{Layout, LinkColour, PanelId, WindowId};
 use fusion_theme::Theme;
 
 use crate::panels::{Events, Outgoing, PanelContext, PanelView};
@@ -22,6 +22,43 @@ pub(super) struct FrameInput {
     pub pressed: Vec<PanelId>,
     /// Colour group changes from the panel headers.
     pub group_changes: Vec<(PanelId, Option<LinkColour>)>,
+    /// Pop out and pop in clicks from the panel headers.
+    pub moves: Vec<(PanelId, Move)>,
+}
+
+/// Where the user wants a panel to go.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Move {
+    /// Into a window of its own.
+    Out,
+    /// Back to where it came from.
+    In,
+}
+
+impl Move {
+    /// The button text.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Out => "Pop out",
+            Self::In => "Pop in",
+        }
+    }
+}
+
+/// The moves a panel header offers. A panel can pop out unless it is
+/// already alone in a window of its own; it can pop in when it is outside
+/// the main window or remembers where it came from.
+pub(super) fn offered_moves(layout: &Layout, window: WindowId, panel: PanelId) -> Vec<Move> {
+    let main = window == WindowId::MAIN;
+    let popped = layout.panel(panel).is_some_and(|p| p.origin.is_some());
+    let mut moves = Vec::new();
+    if main || layout.panels_in(window).len() > 1 {
+        moves.push(Move::Out);
+    }
+    if !main || popped {
+        moves.push(Move::In);
+    }
+    moves
 }
 
 /// The colour of a link group's square.
@@ -67,6 +104,10 @@ pub(super) fn group_name(colour: Option<LinkColour>) -> &'static str {
 
 pub(super) struct Host<'a> {
     pub layout: &'a Layout,
+    /// The window these panels are in.
+    pub window: WindowId,
+    /// True if the hub can open windows, so panels can pop out.
+    pub can_move: bool,
     pub views: &'a mut BTreeMap<PanelId, Box<dyn PanelView>>,
     pub theme: &'a Theme,
     pub market: &'a DemoMarket,
@@ -79,7 +120,21 @@ pub(super) struct Host<'a> {
 }
 
 impl Host<'_> {
-    /// The panel header: the link group picker.
+    /// The panel header: the link group picker, then pop out and pop in.
+    fn header(&mut self, ui: &mut egui::Ui, id: PanelId) {
+        ui.horizontal(|ui| {
+            self.group_chip(ui, id);
+            if self.can_move {
+                for move_to in offered_moves(self.layout, self.window, id) {
+                    if ui.button(move_to.label()).clicked() {
+                        self.frame.moves.push((id, move_to));
+                    }
+                }
+            }
+        });
+    }
+
+    /// The link group picker.
     fn group_chip(&mut self, ui: &mut egui::Ui, id: PanelId) {
         let current = self.layout.groups.get(&id).copied();
         let mut chosen = current;
@@ -108,7 +163,7 @@ impl PanelHost for Host<'_> {
 
     fn ui(&mut self, ui: &mut egui::Ui, id: PanelId) {
         let area = ui.max_rect();
-        self.group_chip(ui, id);
+        self.header(ui, id);
         let mut cx = PanelContext {
             panel: id,
             theme: self.theme,
