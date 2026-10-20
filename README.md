@@ -41,7 +41,8 @@ cargo run -p fusion-server                                     # the server (a s
 ```
 
 CI runs the same checks on Linux, Windows and macOS. It also blocks a merge
-on: complexity limits in clippy, line coverage below 95%
+on: cognitive complexity limits in clippy, cyclomatic complexity above 15
+([lizard](https://github.com/terryyin/lizard)), line coverage below 95%
 ([cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)), surviving
 mutants in changed code ([cargo-mutants](https://github.com/sourcefrog/cargo-mutants)),
 doc warnings, unused dependencies, typos, and licence or security problems

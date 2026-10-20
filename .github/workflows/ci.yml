@@ -152,3 +152,32 @@ jobs:
           name: mutants.out
           path: mutants.out
           if-no-files-found: ignore
+
+  cyclomatic:
+    name: Cyclomatic complexity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install lizard==1.24.1
+      # lizard counts every branch, including each match arm. It does not see
+      # `const fn`; clippy's cognitive complexity covers those. Test code is
+      # left out: long tables of cases are fine in tests.
+      - name: Every function at most 15 (cyclomatic), 80 lines, 6 arguments
+        run: >
+          lizard -l rust --CCN 15 --length 80 --arguments 6 --warnings_only
+          -x "*/tests/*" -x "*/tests.rs" crates apps
+      - name: Most complex functions
+        if: always()
+        run: |
+          {
+            echo '## Cyclomatic complexity: the 15 highest'
+            echo '```'
+            echo 'NLOC  CCN  token  PARAM  length  function'
+            lizard -l rust -x "*/tests/*" -x "*/tests.rs" crates apps \
+              | grep '@' | sort -k2 -n -r | head -15
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

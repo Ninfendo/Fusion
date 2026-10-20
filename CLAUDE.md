@@ -23,6 +23,8 @@ cargo machete && typos                                    # unused dependencies,
 - Clippy with warnings as errors, including complexity limits from the root
   `clippy.toml`: cognitive complexity 15, 80 lines per function, 6
   arguments, nesting depth 5. Split a function rather than raise a limit.
+- Cyclomatic complexity at most 15 per function (lizard, outside test
+  code). lizard does not see `const fn`; the clippy limits cover those.
 - Line coverage of library crates at least 95%. The floor only goes up.
 - Mutation testing on the lines a pull request changes: a missed mutant
   means a test is missing. Add the test; do not skip the mutant without a

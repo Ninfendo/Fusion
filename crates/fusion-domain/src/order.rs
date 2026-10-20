@@ -484,6 +484,19 @@ impl Order {
         if deduplicate && self.seen.contains(&report.exec_id) {
             return Ok(Applied::Duplicate);
         }
+        self.check_report_fits(report)?;
+        self.apply_exec_type(report)?;
+        self.set_reported_status(report.ord_status);
+        self.check_quantities(report)?;
+        if deduplicate {
+            self.seen.insert(report.exec_id.clone());
+        }
+        Ok(Applied::Changed)
+    }
+
+    /// Refuses a report whose status does not fit its exec type, and any
+    /// report but a correction on a terminal order.
+    fn check_report_fits(&self, report: &ExecutionReport) -> Result<(), OrderError> {
         if !report.exec_type.allows_status(report.ord_status) {
             return Err(OrderError::StatusDoesNotFit {
                 exec_type: report.exec_type,
@@ -502,7 +515,12 @@ impl Order {
                 status: self.status,
             });
         }
+        Ok(())
+    }
 
+    /// Applies what the exec type itself changes: fills, quantities, ids.
+    /// Status-only exec types change nothing here.
+    fn apply_exec_type(&mut self, report: &ExecutionReport) -> Result<(), OrderError> {
         match report.exec_type {
             // A fill moves the order out of PendingNew, so an order that is
             // still unacknowledged has no fills and a reject is safe.
@@ -524,13 +542,7 @@ impl Order {
             | ExecType::Calculated
             | ExecType::OrderStatus => {}
         }
-
-        self.set_reported_status(report.ord_status);
-        self.check_quantities(report)?;
-        if deduplicate {
-            self.seen.insert(report.exec_id.clone());
-        }
-        Ok(Applied::Changed)
+        Ok(())
     }
 
     /// True while the venue has not acknowledged the order yet.
