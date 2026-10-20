@@ -11,9 +11,9 @@ Public repo: https://github.com/Ninfendo/Fusion. Design and build order:
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked     # CI adds RUSTFLAGS=-D warnings
 cargo fmt --all
-cargo build --locked --target wasm32-unknown-unknown -p fusion-domain
+cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-cargo llvm-cov --workspace --exclude fusion-server --summary-only --show-missing-lines
+cargo llvm-cov --workspace --ignore-filename-regex 'apps[/\\]' --summary-only --show-missing-lines
 cargo mutants --in-diff <(git diff origin/main...HEAD)   # mutation testing of your change
 cargo machete && typos                                    # unused dependencies, spelling
 ```

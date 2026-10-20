@@ -60,7 +60,7 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       # Every crate the browser client will use must build for wasm32.
-      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain
+      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout
 
   deny:
     name: Licences and advisories
@@ -99,7 +99,7 @@ jobs:
       # left out; everything with logic lives in a library crate.
       - name: Measure line coverage (floor 95%)
         run: >
-          cargo llvm-cov --workspace --exclude fusion-server --locked
+          cargo llvm-cov --workspace --ignore-filename-regex "apps/" --locked
           --summary-only --show-missing-lines --fail-under-lines 95
           | tee coverage.txt
       - name: Coverage summary
