@@ -79,6 +79,23 @@ jobs:
               echo "| $(basename "$f") | $(stat -c %s "$f") |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # The packaged app in a headless Chrome: Pop out opens a window, a
+      # selection reaches the linked panel there, closing it brings the panel
+      # back. SwiftShader draws without a GPU.
+      - name: Smoke test the browser app
+        run: |
+          python3 -m http.server 8710 --bind 127.0.0.1 --directory apps/fusion-web/dist >/dev/null 2>&1 &
+          google-chrome --headless=new --remote-debugging-port=9333 \
+            --user-data-dir="$RUNNER_TEMP/chrome" --no-first-run \
+            --use-angle=swiftshader --enable-unsafe-swiftshader about:blank >/dev/null 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:9333/json/version >/dev/null && curl -sf http://127.0.0.1:8710/ >/dev/null && break
+            sleep 1
+          done
+          node scripts/browser-smoke.mjs 9333 http://127.0.0.1:8710/
 
   deny:
     name: Licences and advisories

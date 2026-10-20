@@ -68,7 +68,8 @@ run happens every week.
 | `crates/fusion-ui-egui` | The panels, the panel registry and the app. |
 | `apps/fusion-launcher` | The desktop app: starts one `fusion-window` per window and keeps the layout. |
 | `apps/fusion-window` | One desktop window. On its own, the whole app in one window. |
-| `apps/fusion-web` | The same app in the browser, built with [Trunk](https://trunk-rs.github.io/trunk/). |
+| `apps/fusion-web` | The same app in the browser, built with [Trunk](https://trunk-rs.github.io/trunk/). Pop out opens a browser window. |
+| `scripts/browser-smoke.mjs` | The browser smoke test CI runs in a headless Chrome. |
 | `apps/fusion-server` | The server binary. |
 | `docs/` | Architecture and design notes. |
 

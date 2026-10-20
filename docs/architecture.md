@@ -111,6 +111,17 @@ The client is built from these blocks from the start, not later.
   connection, so no main loop blocks on a read. A window that loses the
   launcher closes. The socket accepts any process of the same user; check
   the peer's credentials before Fusion runs on a shared machine.
+- **Browser tabs.** The main tab runs the hub (`TabHub`); a Web Lock makes
+  sure only one main tab does, and a second copy of the main tab follows it.
+  The other tabs post `Envelope`s over a BroadcastChannel. A popped-out
+  window is a browser window at `?window=N`: the tab opens an empty one at
+  once, while the click still counts, and fills it when the hub says where
+  the panel went. The hub tab saves the layout in local storage a second
+  after a change, on a timer, because a tab in the background stops drawing.
+  Closing a popped-out window brings its panels back; closing the main tab
+  closes the others. A browser cannot reopen windows without a click, so a
+  fresh start brings every panel back into the main window. CI checks all
+  of this in a headless Chrome (`scripts/browser-smoke.mjs`).
 - **Configurable links.** A link is a rule in the layout: from a panel, a
   context type, to one or more panels, with a mode (`all`, `round-robin`,
   `last-focused`) and an optional gesture (for example Shift+click). Colour
