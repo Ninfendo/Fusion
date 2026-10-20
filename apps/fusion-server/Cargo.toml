@@ -9,5 +9,15 @@ repository.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[dependencies]
+fusion-serve.workspace = true
+fusion-venue-binance.workspace = true
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[dev-dependencies]
+fusion-protocol.workspace = true
+futures-util.workspace = true
+tokio-tungstenite.workspace = true
+
 [lints]
 workspace = true

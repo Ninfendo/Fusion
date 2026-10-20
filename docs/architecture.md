@@ -71,8 +71,15 @@ exchange, and nothing else changes.
   only on rows changed since the last pass (without that it was 0.74 ms).
   A table of 100,000 rows will need an index that keeps the order between
   passes.
-- **Slow clients:** a bounded send queue per session. When it fills, drop the
-  queued changes and send a fresh snapshot. Never block the core.
+- **Slow clients:** a bounded send queue per session (256 frames). When it
+  fills, the rest is dropped and nothing more is sent until half of it has
+  drained; then each viewport sends a fresh snapshot. The core never waits.
+- **Serving** (`fusion-serve`): one core task owns every table and session.
+  It applies market events, handles requests, and every 10 ms sends each
+  session what is due, encoded once. Each connection has a reader and a
+  writer task. Layout requests run on their own tasks, so a slow database
+  never holds up prices. Tables: `prices` (one row per instrument) and
+  `book/<SYMBOL>` (the top 20 levels each side), see `MarketTables`.
 - **Actions:** new order, cancel, kill switch and save layout use the same
   connection, and get an ack or an error.
 - **Protocol:** `crates/fusion-protocol/proto/fusion/v1/viewserver.proto`:

@@ -1,0 +1,21 @@
+[package]
+name = "fusion-serve"
+description = "The view server over WebSocket: connections, sessions polled at their rate, slow clients that get a fresh snapshot instead of a backlog, and layout requests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+fusion-domain.workspace = true
+fusion-protocol.workspace = true
+fusion-viewserver.workspace = true
+futures-util.workspace = true
+tokio = { workspace = true, features = ["net"] }
+tokio-tungstenite.workspace = true
+
+[lints]
+workspace = true

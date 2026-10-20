@@ -42,7 +42,8 @@ cargo run -p fusion-window                                     # the desktop app
 cd apps/fusion-web && trunk serve --release                   # the same app in the browser (needs Trunk)
 cargo run -p fusion-recorder -- record --for-minutes 10            # record Binance testnet market data to ./recordings
 cargo run -p fusion-recorder -- check recordings                   # replay a recording: gaps, and books rebuilt to the same fingerprints
-cargo run -p fusion-server                                     # the server (a stub for now)
+cargo run -p fusion-server                                     # the view server on ws://127.0.0.1:7070, fed by the Binance testnet
+cargo run -p fusion-server --example watch -- ws://127.0.0.1:7070 prices 10   # watch a table on a running server
 ```
 
 CI runs the same checks on Linux, Windows and macOS. It also blocks a merge
@@ -59,6 +60,7 @@ run happens every week.
 | Path | What it is |
 | --- | --- |
 | `crates/fusion-domain` | Core types: time, instruments, orders, events. No I/O; builds for wasm32. |
+| `crates/fusion-serve` | The view server over WebSocket: sessions polled at their rate, slow clients, layout requests. |
 | `crates/fusion-viewserver` | The view server engine: tables, and viewports that send only the rows in range and only what changed. No I/O. |
 | `crates/fusion-protocol` | The wire protocol between the view server and its clients: Protobuf messages (`proto/`), checked by `buf` in CI. No I/O; builds for wasm32. |
 | `crates/fusion-layout` | The layout model: windows, dock trees, panels, as versioned JSON. |
@@ -77,7 +79,7 @@ run happens every week.
 | `apps/fusion-web` | The same app in the browser, built with [Trunk](https://trunk-rs.github.io/trunk/). Pop out opens a browser window. |
 | `scripts/browser-smoke.mjs` | The browser smoke test CI runs in a headless Chrome. |
 | `apps/fusion-recorder` | Records market data to Parquet, and checks a recording. |
-| `apps/fusion-server` | The server binary. |
+| `apps/fusion-server` | The server: Binance market data into the view server, served over WebSocket. |
 | `docs/` | Architecture and design notes. |
 
 More crates arrive with each milestone: protocol, view server, venue
