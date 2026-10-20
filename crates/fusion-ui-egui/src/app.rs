@@ -9,11 +9,10 @@ use std::time::Duration;
 
 use fusion_client_core::demo::DemoMarket;
 use fusion_client_core::links::{LinkDraft, linked_panels};
+use fusion_client_core::workspace::{default_layout, title_of};
 use fusion_egui_dock::{DockOutput, DockTree, to_node, to_tree};
 use fusion_hub::{Bus, Fdc3Context, FromHub, LocalBus, ToHub};
-use fusion_layout::{
-    Child, ContextType, Direction, Layout, Link, LinkMode, Node, Panel, PanelId, WindowId,
-};
+use fusion_layout::{Layout, Node, PanelId, WindowId};
 use fusion_theme::{Mode, Theme};
 
 use crate::panels::{Events, KINDS, Outgoing, PanelView, create};
@@ -31,52 +30,6 @@ fn dock_id() -> egui::Id {
 
 /// How often the demo market moves.
 const STEP: Duration = Duration::from_millis(100);
-
-/// The layout a first start shows: a watchlist on the left, an L2 ladder
-/// and the log on the right, and the watchlist linked to the ladder.
-pub fn default_layout() -> Layout {
-    let mut layout = Layout::new("Fusion");
-    for (id, kind) in (1..).zip(KINDS) {
-        layout
-            .panels
-            .insert(PanelId(id), Panel::new(kind.kind, kind.title));
-    }
-    layout.next_panel_id = PanelId(KINDS.len() as u64 + 1);
-    let tabs = |id| Node::tabs(vec![Node::panel(PanelId(id))]);
-    layout.windows[0].root = Some(Node::Split {
-        direction: Direction::Horizontal,
-        children: vec![
-            Child {
-                share: 3.0,
-                node: tabs(1),
-            },
-            Child {
-                share: 2.0,
-                node: Node::Split {
-                    direction: Direction::Vertical,
-                    children: vec![
-                        Child {
-                            share: 3.0,
-                            node: tabs(2),
-                        },
-                        Child {
-                            share: 1.0,
-                            node: tabs(3),
-                        },
-                    ],
-                },
-            },
-        ],
-    });
-    layout.links.push(Link {
-        from: PanelId(1),
-        context: ContextType::instrument(),
-        to: vec![PanelId(2)],
-        mode: LinkMode::All,
-        gesture: None,
-    });
-    layout
-}
 
 /// The saved form of a theme choice: `dark`, `light`, `dark+cb`, `light+cb`.
 pub fn theme_to_text(mode: Mode, colour_blind: bool) -> String {
@@ -131,6 +84,8 @@ pub struct FusionApp {
     draft: LinkDraft,
     /// The hub asked this window to close.
     quit: bool,
+    /// The window title last shown.
+    title_shown: Option<String>,
 }
 
 impl FusionApp {
@@ -182,6 +137,7 @@ impl FusionApp {
             links_open: false,
             draft: LinkDraft::default(),
             quit: false,
+            title_shown: None,
         };
         app.pump();
         app
@@ -269,10 +225,7 @@ impl FusionApp {
 
     /// Adds a panel of `kind` to this window.
     pub fn add_panel(&mut self, kind: &str) {
-        let title = KINDS
-            .iter()
-            .find(|k| k.kind == kind)
-            .map_or(kind, |k| k.title);
+        let title = title_of(kind);
         self.send(ToHub::AddPanel {
             window: self.window,
             kind: kind.to_owned(),
@@ -344,6 +297,17 @@ impl FusionApp {
                 gesture: out.gesture,
             });
         }
+    }
+
+    /// This window's title from the layout, when it differs from the one
+    /// shown. A popped-out window takes its panel's title.
+    fn new_title(&mut self) -> Option<String> {
+        let title = &self.layout.window(self.window)?.title;
+        if self.title_shown.as_ref() == Some(title) {
+            return None;
+        }
+        self.title_shown = Some(title.clone());
+        self.title_shown.clone()
     }
 
     /// Moves the demo market when it is time.
@@ -439,6 +403,10 @@ impl eframe::App for FusionApp {
             self.send(ToHub::CloseWindow {
                 window: self.window,
             });
+        }
+        if let Some(title) = self.new_title() {
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Title(title));
         }
         if self.theme_dirty {
             fusion_egui_theme::apply(ui.ctx(), &self.theme());

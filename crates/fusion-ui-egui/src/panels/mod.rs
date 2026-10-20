@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 
 use fusion_client_core::demo::DemoMarket;
 use fusion_client_core::links::Context;
+use fusion_client_core::workspace::kind;
 use fusion_layout::{Gesture, PanelId};
 use fusion_theme::Theme;
 
@@ -88,38 +89,15 @@ pub trait PanelView {
     fn receive(&mut self, _context: &Context, _events: &mut Events) {}
 }
 
-/// A panel type the app can create.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PanelKind {
-    /// The kind as the layout stores it.
-    pub kind: &'static str,
-    /// The title a new panel of this kind gets.
-    pub title: &'static str,
-}
-
-/// Every panel type this build knows, in menu order.
-pub const KINDS: [PanelKind; 3] = [
-    PanelKind {
-        kind: "watchlist",
-        title: "Watchlist",
-    },
-    PanelKind {
-        kind: "l2",
-        title: "L2",
-    },
-    PanelKind {
-        kind: "log",
-        title: "Log",
-    },
-];
+pub use fusion_client_core::workspace::{KINDS, PanelKind};
 
 /// A view for a panel kind. A kind this build does not know gets a
 /// placeholder, and the panel stays in the layout.
 pub fn create(kind: &str) -> Box<dyn PanelView> {
     match kind {
-        "watchlist" => Box::new(WatchlistView::default()),
-        "l2" => Box::new(LadderView::default()),
-        "log" => Box::new(LogView),
+        kind::WATCHLIST => Box::new(WatchlistView::default()),
+        kind::L2 => Box::new(LadderView::default()),
+        kind::LOG => Box::new(LogView),
         other => Box::new(Placeholder::new(other)),
     }
 }
@@ -141,14 +119,5 @@ mod tests {
             events.lines().next_back(),
             Some(format!("line {}", Events::CAPACITY + 4).as_str())
         );
-    }
-
-    #[test]
-    fn every_kind_has_a_unique_name() {
-        for (i, a) in KINDS.iter().enumerate() {
-            for b in &KINDS[i + 1..] {
-                assert_ne!(a.kind, b.kind);
-            }
-        }
     }
 }

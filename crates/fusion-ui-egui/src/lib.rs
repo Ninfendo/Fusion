@@ -7,4 +7,5 @@
 mod app;
 pub mod panels;
 
-pub use app::{FusionApp, LAYOUT_KEY, THEME_KEY, default_layout};
+pub use app::{FusionApp, LAYOUT_KEY, THEME_KEY};
+pub use fusion_client_core::workspace::default_layout;

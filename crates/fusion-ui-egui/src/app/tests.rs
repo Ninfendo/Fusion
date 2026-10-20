@@ -4,7 +4,7 @@ use eframe::Storage as _;
 use egui_kittest::{Harness, kittest::Queryable as _};
 use fusion_client_core::links::Context;
 use fusion_egui_dock::PanelHost as _;
-use fusion_layout::{ContextType, Gesture, Link, LinkColour, LinkMode};
+use fusion_layout::{Child, ContextType, Direction, Gesture, Link, LinkColour, LinkMode, Panel};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -48,14 +48,6 @@ fn has_event(app: &FusionApp, text: &str) -> bool {
 }
 
 // --- Logic -------------------------------------------------------------------
-
-#[test]
-fn the_default_layout_is_valid_and_has_every_kind() {
-    let layout = default_layout();
-    assert_eq!(layout.validate(), Ok(()));
-    let kinds: Vec<&str> = layout.panels.values().map(|p| p.kind.as_str()).collect();
-    assert_eq!(kinds, ["watchlist", "l2", "log"]);
-}
 
 #[test]
 fn theme_choices_round_trip() {
@@ -866,4 +858,18 @@ fn a_launched_window_leaves_the_layout_to_the_launcher() {
     eframe::App::save(&mut app, &mut storage);
     assert_eq!(storage.get_string(LAYOUT_KEY), None);
     assert!(storage.get_string(THEME_KEY).is_some());
+}
+
+#[test]
+fn a_window_shows_its_title_once() {
+    let hub = SharedHub::new(default_layout());
+    let mut main = FusionApp::with_bus(hub.bus(WindowId::MAIN), WindowId::MAIN, None);
+    assert_eq!(main.new_title().as_deref(), Some("Fusion"));
+    assert_eq!(main.new_title(), None);
+    pop_out(&mut main, PanelId(2));
+    let window = main.layout().window_of(PanelId(2)).expect("popped out");
+    let mut other = FusionApp::with_bus(hub.bus(window), window, None);
+    assert_eq!(other.new_title().as_deref(), Some("L2"));
+    let mut gone = FusionApp::with_bus(Box::new(ScriptBus::default()), WindowId(9), None);
+    assert_eq!(gone.new_title(), None, "no such window");
 }

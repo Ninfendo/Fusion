@@ -86,7 +86,13 @@ The client is built from these blocks from the start, not later.
   The browser build runs in CI from milestone 1.
 - **One process per window.** A launcher starts one process per window and
   restarts a window that crashes. In the browser each tab is already a
-  separate process, so both work the same way.
+  separate process, so both work the same way. The launcher keeps the
+  layout in Fusion's settings folder (`%APPDATA%Fusion` on Windows,
+  `~/Library/Application Support/Fusion` on macOS, `~/.config/fusion`
+  elsewhere) and saves it a second after each change. A window that crashes
+  more than 3 times in 30 seconds is closed and its panels pop back in.
+  Closing the main window ends the app. Each window keeps its own place on
+  the screen in `windows/N.ron`.
 - **Local hub.** Windows send each other only small messages: context
   (FDC3-style, for example `fdc3.instrument`), layout changes and window
   commands. On desktop the launcher relays them over local pipes (named pipes
@@ -169,7 +175,7 @@ milestone needs it, not before.
 | Adapters | `fusion-venue-binance`, `fusion-venue-deribit`, `fusion-fix`, `fusion-persistence-pg` | Domain only, never the engine |
 | Client models (no UI library, build for wasm32) | `fusion-client-core` (presentation models, protocol client, links), `fusion-hub` (the hub between windows and its messages, no I/O), `fusion-layout` (windows, dock tree, panels, links, versioned save format), `fusion-theme` (tokens), `fusion-chart-model` (candles, studies, scales) | Domain, protocol, never server crates |
 | Client drawing (egui) | `fusion-egui-dock`, `fusion-egui-theme`, `fusion-egui-controls` (price input, grid, L2 ladder, ticket parts), `fusion-egui-charts`, `fusion-ui-egui` (panels and the panel registry) | Client models, egui |
-| Client I/O (desktop only) | `fusion-pipe` (the hub messages over a local socket: a window's bus and the launcher's server) | Client models |
+| Client I/O (desktop only) | `fusion-pipe` (the hub messages over a local socket: a window's bus and the launcher's server), `fusion-launch` (the launcher loop, the window processes, the layout file) | Client models |
 | Apps (composition roots) | `fusion-server`, `fusion-launcher`, `fusion-window`, `fusion-web` | What they wire |
 
 - Adapters implement traits from `fusion-domain` (ports and adapters), so an
@@ -239,6 +245,19 @@ This is Fusion's equivalent of an IoC container. There is no container crate.
   only for rows whose inputs changed.
 - Avoid an allocation per message in hot loops: reuse buffers.
 - Measure before optimising, with latency histograms (`hdrhistogram`).
+- One process per window makes memory per window count. Desktop windows
+  draw with OpenGL on Windows and Linux (Metal on macOS); `WGPU_BACKEND`
+  overrides it. Measured on Windows, release build, two windows, 2026-10-20:
+
+  | Backend | Working set per window | Private memory per window |
+  | --- | --- | --- |
+  | OpenGL (the default) | 92 MB | 24 MB |
+  | DX12 | 239 MB | 354 MB |
+  | Vulkan | 240 MB | 366 MB |
+  | All backends loaded | 292 MB | 400 MB |
+
+  OpenGL also used less CPU time (0.4 s against 0.55 s per 10 s with the
+  demo market). The launcher itself takes 6 MB.
 
 ## Determinism rules
 

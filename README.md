@@ -37,7 +37,8 @@ cargo test --workspace                                         # all tests
 cargo clippy --workspace --all-targets                         # lints
 cargo fmt --all                                                # format
 cargo build --target wasm32-unknown-unknown -p fusion-domain   # browser build check
-cargo run -p fusion-window                                     # the desktop app: the dock with demo panels
+cargo build -p fusion-window -p fusion-launcher && target/debug/fusion-launcher   # the desktop app, one process per window
+cargo run -p fusion-window                                     # the desktop app in one window, without the launcher
 cd apps/fusion-web && trunk serve --release                   # the same app in the browser (needs Trunk)
 cargo run -p fusion-server                                     # the server (a stub for now)
 ```
@@ -61,10 +62,12 @@ run happens every week.
 | `crates/fusion-client-core` | Presentation models and the demo market. No UI library. |
 | `crates/fusion-hub` | The hub between windows: it owns the layout and the links, as messages in and out. No I/O. |
 | `crates/fusion-pipe` | The hub messages over a local socket between the window processes and the launcher. Desktop only. |
+| `crates/fusion-launch` | The launcher's logic: the hub over pipes, one process per window, restarts, the layout file. Desktop only. |
 | `crates/fusion-egui-theme` | Maps the colour tokens onto egui. |
 | `crates/fusion-egui-dock` | Draws a layout with egui_tiles and reads the user's edits back. |
 | `crates/fusion-ui-egui` | The panels, the panel registry and the app. |
-| `apps/fusion-window` | The desktop app. |
+| `apps/fusion-launcher` | The desktop app: starts one `fusion-window` per window and keeps the layout. |
+| `apps/fusion-window` | One desktop window. On its own, the whole app in one window. |
 | `apps/fusion-web` | The same app in the browser, built with [Trunk](https://trunk-rs.github.io/trunk/). |
 | `apps/fusion-server` | The server binary. |
 | `docs/` | Architecture and design notes. |
