@@ -38,6 +38,7 @@ cargo clippy --workspace --all-targets                         # lints
 cargo fmt --all                                                # format
 cargo build --target wasm32-unknown-unknown -p fusion-domain   # browser build check
 cargo run -p fusion-window                                     # the desktop app: the dock with demo panels
+trunk serve --release apps/fusion-web/index.html              # the same app in the browser (needs Trunk)
 cargo run -p fusion-server                                     # the server (a stub for now)
 ```
 
@@ -62,6 +63,7 @@ run happens every week.
 | `crates/fusion-egui-dock` | Draws a layout with egui_tiles and reads the user's edits back. |
 | `crates/fusion-ui-egui` | The panels, the panel registry and the app. |
 | `apps/fusion-window` | The desktop app. |
+| `apps/fusion-web` | The same app in the browser, built with [Trunk](https://trunk-rs.github.io/trunk/). |
 | `apps/fusion-server` | The server binary. |
 | `docs/` | Architecture and design notes. |
 

@@ -1299,6 +1299,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fusion-web"
+version = "0.0.1"
+dependencies = [
+ "eframe",
+ "fusion-ui-egui",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "fusion-window"
 version = "0.0.1"
 dependencies = [
