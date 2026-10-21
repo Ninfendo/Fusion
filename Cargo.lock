@@ -1537,6 +1537,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "fusion-client-link"
+version = "0.0.1"
+dependencies = [
+ "fusion-domain",
+ "fusion-protocol",
+ "fusion-serve",
+ "futures-util",
+ "js-sys",
+ "rustls",
+ "tokio",
+ "tokio-tungstenite",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "fusion-domain"
 version = "0.0.1"
 dependencies = [

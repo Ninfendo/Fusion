@@ -65,7 +65,8 @@ run happens every week.
 | `crates/fusion-protocol` | The wire protocol between the view server and its clients: Protobuf messages (`proto/`), checked by `buf` in CI. No I/O; builds for wasm32. |
 | `crates/fusion-layout` | The layout model: windows, dock trees, panels, as versioned JSON. |
 | `crates/fusion-theme` | Colour tokens, dark and light, with a colour-blind option. |
-| `crates/fusion-client-core` | Presentation models and the demo market. No UI library. |
+| `crates/fusion-client-core` | Presentation models, the demo market, and the live market from the view server. No UI library, no I/O. |
+| `crates/fusion-client-link` | The client's line to the view server: a WebSocket that reconnects by itself. A thread of its own on desktop; the browser's WebSocket in the browser. |
 | `crates/fusion-hub` | The hub between windows: it owns the layout and the links, as messages in and out. No I/O. |
 | `crates/fusion-pipe` | The hub messages over a local socket between the window processes and the launcher. Desktop only. |
 | `crates/fusion-launch` | The launcher's logic: the hub over pipes, one process per window, restarts, the layout file. Desktop only. |

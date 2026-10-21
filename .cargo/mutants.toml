@@ -1,6 +1,8 @@
 # Apps are composition roots with no logic of their own; integration tests
 # cover their wiring. Mutation testing targets the library crates.
-exclude_globs = ["apps/**"]
+# Browser-only code is not built for the native tests, so every mutant in it
+# would survive; the browser smoke test covers it.
+exclude_globs = ["apps/**", "crates/fusion-client-link/src/web.rs"]
 
 # Tests that wait for a pipe message fail after a few seconds when a mutant
 # breaks the pipe. On a slow runner several such tests can add up past the

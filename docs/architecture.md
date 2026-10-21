@@ -100,6 +100,11 @@ The client is built from these blocks from the start, not later.
   routing, order-ticket logic and checks, hotkey map, price formatting and
   theme tokens. It has no UI library and no async runtime in it, so a second
   UI library can reuse it unchanged.
+- **`client-link` crate:** the WebSocket to the view server. On desktop it
+  is a thread of its own; in the browser it is the browser's WebSocket.
+  After a lost connection it tries again after 1 s, then 2, 4, up to 30 s.
+  On each new connection the client opens its viewports again and gets
+  fresh snapshots. Messages sent while it is away are dropped.
 - **Desktop and browser:** the same UI crate builds natively and for wasm32.
   The browser build runs in CI from milestone 1.
 - **One process per window.** A launcher starts one process per window and
@@ -232,7 +237,7 @@ milestone needs it, not before.
 | Adapters | `fusion-venue-binance`, `fusion-venue-deribit`, `fusion-fix`, `fusion-persistence-pg` | Domain only, never the engine |
 | Client models (no UI library, build for wasm32) | `fusion-client-core` (presentation models, protocol client, links), `fusion-hub` (the hub between windows and its messages, no I/O), `fusion-layout` (windows, dock tree, panels, links, versioned save format), `fusion-theme` (tokens), `fusion-chart-model` (candles, studies, scales) | Domain, protocol, never server crates |
 | Client drawing (egui) | `fusion-egui-dock`, `fusion-egui-theme`, `fusion-egui-controls` (price input, grid, L2 ladder, ticket parts), `fusion-egui-charts`, `fusion-ui-egui` (panels and the panel registry) | Client models, egui |
-| Client I/O (desktop only) | `fusion-pipe` (the hub messages over a local socket: a window's bus and the launcher's server), `fusion-launch` (the launcher loop, the window processes, the layout file) | Client models |
+| Client I/O | `fusion-client-link` (the WebSocket to the view server, desktop and browser), `fusion-pipe` (the hub messages over a local socket: a window's bus and the launcher's server), `fusion-launch` (the launcher loop, the window processes, the layout file); the last two are desktop only | Client models |
 | Apps (composition roots) | `fusion-server`, `fusion-launcher`, `fusion-window`, `fusion-web` | What they wire |
 
 - Adapters implement traits from `fusion-domain` (ports and adapters), so an
