@@ -29,6 +29,19 @@ pub use native::NativeLink as Link;
 #[cfg(target_arch = "wasm32")]
 pub use web::WebLink as Link;
 
+/// What `wake` must be: a function to call after each event. On desktop it
+/// runs on the link's own thread, so it must be `Send` there.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait Wake: Fn() + Send + 'static {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<F: Fn() + Send + 'static> Wake for F {}
+
+/// What `wake` must be: a function to call after each event.
+#[cfg(target_arch = "wasm32")]
+pub trait Wake: Fn() + 'static {}
+#[cfg(target_arch = "wasm32")]
+impl<F: Fn() + 'static> Wake for F {}
+
 /// What happened on the link.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LinkEvent {
@@ -65,27 +78,26 @@ pub fn server_from_query(query: &str) -> Option<String> {
 }
 
 /// Turns each `%XX` into its byte. A `%` without two hex digits stays.
+/// Each turn takes one or three bytes off the front, so it always ends.
 fn percent_decode(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut at = 0;
-    while let Some(&byte) = bytes.get(at) {
-        let hex = bytes
-            .get(at + 1..at + 3)
-            .filter(|h| h.iter().all(u8::is_ascii_hexdigit))
-            .and_then(|h| u8::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok());
-        match (byte, hex) {
-            (b'%', Some(decoded)) => {
-                out.push(decoded);
-                at += 3;
-            }
-            _ => {
-                out.push(byte);
-                at += 1;
-            }
-        }
+    let mut out = Vec::with_capacity(text.len());
+    let mut rest = text.as_bytes();
+    while let Some((&first, tail)) = rest.split_first() {
+        let decoded = match tail {
+            [high, low, after @ ..] if first == b'%' => hex_byte(*high, *low).map(|b| (b, after)),
+            _ => None,
+        };
+        let (byte, after) = decoded.unwrap_or((first, tail));
+        out.push(byte);
+        rest = after;
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The byte two hex digits stand for, as in `4` `1` for `A`.
+fn hex_byte(high: u8, low: u8) -> Option<u8> {
+    let digit = |c: u8| char::from(c).to_digit(16);
+    u8::try_from(digit(high)? * 16 + digit(low)?).ok()
 }
 
 #[cfg(test)]
@@ -113,6 +125,14 @@ mod tests {
         assert_eq!(percent_decode("a%4"), "a%4");
         assert_eq!(percent_decode("%zz%41"), "%zzA");
         assert_eq!(percent_decode("%+1"), "%+1");
+        assert_eq!(
+            percent_decode("%e2%82%ac%7E"),
+            "€~",
+            "bytes of one character"
+        );
+        assert_eq!(hex_byte(b'f', b'F'), Some(255));
+        assert_eq!(hex_byte(b'0', b'9'), Some(9));
+        assert_eq!(hex_byte(b'g', b'0'), None);
     }
 
     #[test]

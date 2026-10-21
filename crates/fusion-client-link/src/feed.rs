@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use fusion_client_core::{Book, FeedStatus, LiveMarket, MarketData, MarketFeed, Quote};
 use fusion_protocol::v1::ClientMessage;
 
-use crate::{Link, LinkEvent};
+use crate::{Link, LinkEvent, Wake};
 
 /// Market data from the view server.
 pub struct LiveFeed {
@@ -17,15 +17,7 @@ pub struct LiveFeed {
 impl LiveFeed {
     /// Starts connecting to the view server at `url`, for example
     /// `ws://127.0.0.1:7070`. `wake` runs when something comes in.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn connect(url: &str, wake: impl Fn() + Send + 'static) -> std::io::Result<Self> {
-        Ok(Self::over(Link::connect(url, wake)?))
-    }
-
-    /// Starts connecting to the view server at `url`, for example
-    /// `ws://127.0.0.1:7070`. `wake` runs when something comes in.
-    #[cfg(target_arch = "wasm32")]
-    pub fn connect(url: &str, wake: impl Fn() + 'static) -> std::io::Result<Self> {
+    pub fn connect(url: &str, wake: impl Wake) -> std::io::Result<Self> {
         Ok(Self::over(Link::connect(url, wake)?))
     }
 

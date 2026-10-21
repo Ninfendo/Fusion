@@ -9,11 +9,11 @@ use futures_util::{SinkExt as _, StreamExt as _};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::{LinkEvent, retry_after};
+use crate::{LinkEvent, Wake, retry_after};
 
 /// Runs after each event. Boxed, so one copy of the link's code serves
 /// every caller.
-type Wake = Box<dyn Fn() + Send>;
+type BoxedWake = Box<dyn Fn() + Send>;
 
 /// The link on desktop.
 pub struct NativeLink {
@@ -24,11 +24,11 @@ pub struct NativeLink {
 impl NativeLink {
     /// Starts connecting to `url` (for example `ws://127.0.0.1:7070`) on a
     /// thread of its own. `wake` runs after each event.
-    pub fn connect(url: &str, wake: impl Fn() + Send + 'static) -> std::io::Result<Self> {
+    pub fn connect(url: &str, wake: impl Wake) -> std::io::Result<Self> {
         Self::start(url.to_owned(), Box::new(wake))
     }
 
-    fn start(url: String, wake: Wake) -> std::io::Result<Self> {
+    fn start(url: String, wake: BoxedWake) -> std::io::Result<Self> {
         let (outgoing, from_ui) = mpsc::unbounded_channel();
         let (to_ui, incoming) = std_mpsc::channel();
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -58,7 +58,7 @@ async fn run(
     url: String,
     mut from_ui: mpsc::UnboundedReceiver<Vec<u8>>,
     to_ui: std_mpsc::Sender<LinkEvent>,
-    wake: Wake,
+    wake: BoxedWake,
 ) {
     // TLS for wss:// addresses; installing twice is fine.
     let _installed = rustls::crypto::ring::default_provider().install_default();
