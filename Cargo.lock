@@ -1807,13 +1807,22 @@ dependencies = [
 name = "fusion-server"
 version = "0.0.1"
 dependencies = [
+ "fusion-domain",
  "fusion-persistence-pg",
  "fusion-protocol",
  "fusion-serve",
+ "fusion-sim",
  "fusion-venue-binance",
  "futures-util",
  "tokio",
  "tokio-tungstenite",
+]
+
+[[package]]
+name = "fusion-sim"
+version = "0.0.1"
+dependencies = [
+ "fusion-domain",
 ]
 
 [[package]]
@@ -1828,6 +1837,7 @@ dependencies = [
  "egui",
  "egui_kittest",
  "fusion-client-core",
+ "fusion-client-link",
  "fusion-egui-dock",
  "fusion-egui-theme",
  "fusion-hub",

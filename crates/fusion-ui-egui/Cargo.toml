@@ -20,6 +20,7 @@ fusion-layout.workspace = true
 fusion-theme.workspace = true
 
 [dev-dependencies]
+fusion-client-link.workspace = true
 egui_kittest = { workspace = true, features = ["eframe"] }
 
 [lints]
