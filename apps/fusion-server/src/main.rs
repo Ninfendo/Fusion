@@ -2,16 +2,20 @@
 //!
 //! ```text
 //! fusion-server [--venue testnet|public] [--symbols BTCUSDT,ETHUSDT] [--listen 127.0.0.1:7070]
+//!               [--database postgres://USER:PASSWORD@HOST:PORT/DB]
 //! ```
 //!
 //! Streams Binance market data into the view server's tables (`prices`,
 //! and `book/<SYMBOL>` per instrument) and serves them over WebSocket at
-//! `ws://<listen>`. Layouts are kept in memory for now. Gaps, reconnects
-//! and failed fetches are printed. Stops on Ctrl+C.
+//! `ws://<listen>`. Layouts are kept in PostgreSQL with `--database`, and
+//! in memory without it. Gaps, reconnects and failed fetches are printed.
+//! Stops on Ctrl+C.
 
 use std::error::Error;
+use std::future::Future;
 use std::process::ExitCode;
 
+use fusion_persistence_pg::PgLayouts;
 use fusion_serve::{MemoryLayouts, ServeConfig, serve};
 use fusion_venue_binance::live::{self, FeedItem, HttpFetch, LiveConfig};
 use fusion_venue_binance::{Endpoint, SymbolTable};
@@ -26,6 +30,8 @@ struct Options {
     venue: Endpoint,
     symbols: Vec<String>,
     listen: String,
+    /// Where layouts are kept; in memory without one.
+    database: Option<String>,
 }
 
 fn parse(args: &[String]) -> Result<Options, String> {
@@ -33,6 +39,7 @@ fn parse(args: &[String]) -> Result<Options, String> {
         venue: Endpoint::Testnet,
         symbols: split(DEFAULT_SYMBOLS),
         listen: "127.0.0.1:7070".to_owned(),
+        database: None,
     };
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
@@ -43,6 +50,7 @@ fn parse(args: &[String]) -> Result<Options, String> {
             }
             "--symbols" => options.symbols = split(value),
             "--listen" => options.listen.clone_from(value),
+            "--database" => options.database = Some(value.clone()),
             other => return Err(format!("unknown option {other}")),
         }
     }
@@ -86,6 +94,11 @@ fn main() -> ExitCode {
 }
 
 async fn run(options: Options) -> Result<(), Box<dyn Error>> {
+    // The database first: a wrong address stops the server at once.
+    let database = match &options.database {
+        Some(url) => Some(fusion_persistence_pg::connect(url).await?),
+        None => None,
+    };
     let listener = TcpListener::bind(&options.listen).await?;
     eprintln!(
         "serving {} symbols at ws://{}",
@@ -111,11 +124,28 @@ async fn run(options: Options) -> Result<(), Box<dyn Error>> {
             }
         }
     });
-    tokio::select! {
-        () = serve(listener, &options.symbols, market, MemoryLayouts::default(), ServeConfig::default()) => {}
-        _ = tokio::signal::ctrl_c() => {}
+    let config = ServeConfig::default();
+    match database {
+        Some(pool) => {
+            eprintln!("layouts are kept in the database");
+            let layouts = PgLayouts::new(pool);
+            until_stopped(serve(listener, &options.symbols, market, layouts, config)).await;
+        }
+        None => {
+            eprintln!("layouts are kept in memory until the server stops");
+            let layouts = MemoryLayouts::default();
+            until_stopped(serve(listener, &options.symbols, market, layouts, config)).await;
+        }
     }
     Ok(())
+}
+
+/// Runs `server` until it ends or Ctrl+C is pressed.
+async fn until_stopped(server: impl Future<Output = ()>) {
+    tokio::select! {
+        () = server => {}
+        _ = tokio::signal::ctrl_c() => {}
+    }
 }
 
 #[cfg(test)]
@@ -139,6 +169,13 @@ mod tests {
         assert_eq!(set.venue, Endpoint::Public);
         assert_eq!(set.symbols, ["BTCUSDT", "ETHUSDT"]);
         assert_eq!(set.listen, "0.0.0.0:9000");
+        assert_eq!(set.database, None);
+        let with_database =
+            parse(&args("--database postgres://u:p@h:5432/fusion")).expect("options");
+        assert_eq!(
+            with_database.database.as_deref(),
+            Some("postgres://u:p@h:5432/fusion")
+        );
         assert!(parse(&args("--venue live")).is_err());
         assert!(parse(&args("--listen")).is_err());
         assert!(parse(&args("--fast yes")).is_err());

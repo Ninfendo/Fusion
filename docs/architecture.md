@@ -155,7 +155,12 @@ The client is built from these blocks from the start, not later.
   window pops it back in.
 - **Own layout format:** windows, each window's dock tree, the panels and the
   links, versioned and saved in PostgreSQL. It does not depend on any UI
-  library's format.
+  library's format. The view server stores layouts by name through the
+  `LayoutStore` trait in `fusion-domain`: `PgLayouts`
+  (`fusion-persistence-pg`) with `--database`, `MemoryLayouts` without. The
+  table keeps the JSON exactly as sent and refuses anything but a JSON
+  object. Migrations are built into the program and run when the server
+  connects.
 - **Theme as tokens:** background, panel, text, accent, buy, sell, up tick,
   down tick, warning, grid line, selected row. A colour-blind option for buy
   and sell, and a monospace font for prices.

@@ -55,11 +55,28 @@ doc warnings, unused dependencies, typos, and licence or security problems
 ([cargo-deny](https://github.com/EmbarkStudios/cargo-deny)). A full mutation
 run happens every week.
 
+### A database
+
+The server keeps layouts in PostgreSQL 18 when it is given one. Without
+`--database` it keeps them in memory. A local database in Docker:
+
+```sh
+docker run -d --name fusion-postgres -e POSTGRES_USER=fusion -e POSTGRES_PASSWORD=fusion   -e POSTGRES_DB=fusion -p 127.0.0.1:55432:5432 postgres:18-alpine
+cargo run -p fusion-server -- --database postgres://fusion:fusion@127.0.0.1:55432/fusion
+FUSION_TEST_DATABASE_URL=postgres://fusion:fusion@127.0.0.1:55432/fusion cargo test -p fusion-persistence-pg
+```
+
+The tables come from the migrations in `crates/fusion-persistence-pg/migrations`,
+which run when the server connects. Without `FUSION_TEST_DATABASE_URL` the
+database tests pass without running; CI runs them on Linux, and there
+`FUSION_REQUIRE_DATABASE` makes a missing database an error.
+
 ## Layout
 
 | Path | What it is |
 | --- | --- |
-| `crates/fusion-domain` | Core types: time, instruments, orders, events. No I/O; builds for wasm32. |
+| `crates/fusion-domain` | Core types: time, instruments, orders, events, and the repository traits (ports) such as `LayoutStore`. No I/O; builds for wasm32. |
+| `crates/fusion-persistence-pg` | PostgreSQL storage (sqlx): the layouts. Implements the repository traits of `fusion-domain`. |
 | `crates/fusion-serve` | The view server over WebSocket: sessions polled at their rate, slow clients, layout requests. |
 | `crates/fusion-viewserver` | The view server engine: tables, and viewports that send only the rows in range and only what changed. No I/O. |
 | `crates/fusion-protocol` | The wire protocol between the view server and its clients: Protobuf messages (`proto/`), checked by `buf` in CI. No I/O; builds for wasm32. |

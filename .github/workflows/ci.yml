@@ -49,6 +49,9 @@ jobs:
       - uses: actions/checkout@v7
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
+      # The database tests run on Linux; elsewhere they say they were skipped.
+      - if: runner.os == 'Linux'
+        uses: ./.github/actions/postgres
       - run: cargo test --workspace --locked
 
   wasm:
@@ -129,6 +132,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
+      - uses: ./.github/actions/postgres
       - uses: Swatinem/rust-cache@v2
       # The floor only goes up. Binaries are thin composition roots and are
       # left out; everything with logic lives in a library crate.
@@ -192,6 +196,7 @@ jobs:
         with:
           tool: cargo-mutants
       - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/postgres
       - name: Mutate only the lines this pull request changes
         run: |
           git diff "origin/${{ github.base_ref }}...HEAD" > pr.diff

@@ -1,0 +1,21 @@
+name: PostgreSQL for the tests
+description: >
+  Starts PostgreSQL 18 in Docker and tells the tests where it is. Linux
+  runners only: the Windows and macOS runners cannot run Linux containers.
+runs:
+  using: composite
+  steps:
+    - name: Start PostgreSQL 18
+      shell: bash
+      run: |
+        docker run -d --name fusion-postgres \
+          -e POSTGRES_USER=fusion -e POSTGRES_PASSWORD=fusion -e POSTGRES_DB=fusion \
+          -p 127.0.0.1:5432:5432 postgres:18-alpine
+        # Over TCP: while it sets itself up, it listens on its socket only.
+        for i in $(seq 1 60); do
+          docker exec fusion-postgres pg_isready -h 127.0.0.1 -U fusion -q && break
+          sleep 1
+        done
+        docker exec fusion-postgres pg_isready -h 127.0.0.1 -U fusion
+        echo "FUSION_TEST_DATABASE_URL=postgres://fusion:fusion@127.0.0.1:5432/fusion" >> "$GITHUB_ENV"
+        echo "FUSION_REQUIRE_DATABASE=1" >> "$GITHUB_ENV"
