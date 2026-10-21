@@ -13,7 +13,7 @@ use fusion_protocol::v1::{
 use fusion_serve::{MemoryLayouts, ServeConfig, serve};
 use tokio::sync::mpsc;
 
-const WAIT: Duration = Duration::from_secs(15);
+const WAIT: Duration = Duration::from_secs(10);
 
 /// A free local port: bound, then let go.
 fn free_address() -> String {
