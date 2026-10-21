@@ -1533,6 +1533,7 @@ version = "0.0.1"
 dependencies = [
  "fusion-domain",
  "fusion-layout",
+ "fusion-protocol",
 ]
 
 [[package]]

@@ -12,6 +12,7 @@ publish.workspace = true
 [dependencies]
 fusion-domain.workspace = true
 fusion-layout.workspace = true
+fusion-protocol.workspace = true
 
 [lints]
 workspace = true
