@@ -59,6 +59,11 @@ The right end of the menu bar says where the data comes from: `Demo data`,
 `Live`, or why it is not connected. A lost connection is tried again by
 itself.
 
+With a server, the layout is kept there too, so the desktop app and the
+browser show the same one. The server's copy wins at the start; the file
+(desktop) or the browser's storage stays as a local copy. A change made
+before the server's copy arrives wins over it.
+
 CI runs the same checks on Linux, Windows and macOS. It also blocks a merge
 on: cognitive complexity limits in clippy, cyclomatic complexity above 15
 ([lizard](https://github.com/terryyin/lizard)), line coverage below 95%

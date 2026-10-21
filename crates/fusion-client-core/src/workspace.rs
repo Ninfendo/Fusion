@@ -1,4 +1,5 @@
-//! The panel kinds, and the layout a first start shows.
+//! The panel kinds, the layout a first start shows, and which layout wins
+//! when the view server keeps one too.
 //!
 //! The launcher needs the default layout without drawing anything, so it
 //! lives here and not in the UI crate.
@@ -94,9 +95,81 @@ pub fn default_layout() -> Layout {
     layout
 }
 
+/// The layout's name on the view server. The desktop app and the browser
+/// share it, so both show the same layout.
+pub const SERVER_LAYOUT: &str = "main";
+
+/// What to do with the view server's answer to loading the layout.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LayoutChoice {
+    /// Show the server's layout.
+    UseServer(Layout),
+    /// Keep the local layout and send it to the server.
+    SendLocal,
+    /// Keep the local layout and leave the server's alone, and why.
+    KeepLocal(String),
+}
+
+/// Which layout wins: the server's, unless it has none, or the user has
+/// already changed the local one, which is then newer. A server copy that
+/// cannot be read, or a load that failed, keeps the local layout without
+/// overwriting the server's.
+pub fn choose_layout(answer: Result<Option<String>, String>, changed_here: bool) -> LayoutChoice {
+    match answer {
+        Ok(_) if changed_here => LayoutChoice::SendLocal,
+        Ok(None) => LayoutChoice::SendLocal,
+        Ok(Some(json)) => match Layout::from_json(&json) {
+            Ok(layout) => LayoutChoice::UseServer(layout),
+            Err(err) => LayoutChoice::KeepLocal(format!(
+                "The view server's layout could not be read ({err}); using the local one."
+            )),
+        },
+        Err(why) => LayoutChoice::KeepLocal(format!(
+            "The view server could not load the layout ({why}); using the local one."
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_server_s_layout_wins_unless_the_local_one_changed() {
+        let json = default_layout().to_json().expect("json");
+        assert_eq!(
+            choose_layout(Ok(Some(json.clone())), false),
+            LayoutChoice::UseServer(default_layout())
+        );
+        assert_eq!(
+            choose_layout(Ok(Some(json)), true),
+            LayoutChoice::SendLocal,
+            "changed here: the local one is newer"
+        );
+    }
+
+    #[test]
+    fn a_server_without_a_layout_gets_the_local_one() {
+        assert_eq!(choose_layout(Ok(None), false), LayoutChoice::SendLocal);
+        assert_eq!(choose_layout(Ok(None), true), LayoutChoice::SendLocal);
+    }
+
+    #[test]
+    fn a_failed_or_unreadable_load_keeps_both_copies() {
+        for (answer, says) in [
+            (Err("down".to_owned()), "could not load the layout (down)"),
+            (Ok(Some("{".to_owned())), "could not be read"),
+        ] {
+            match choose_layout(answer, false) {
+                LayoutChoice::KeepLocal(note) => assert!(note.contains(says), "{note}"),
+                other => panic!("kept local, not {other:?}"),
+            }
+        }
+        assert!(matches!(
+            choose_layout(Err("down".to_owned()), true),
+            LayoutChoice::KeepLocal(_)
+        ));
+    }
 
     #[test]
     fn every_kind_has_a_unique_name() {

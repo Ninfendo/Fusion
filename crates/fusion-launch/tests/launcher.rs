@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use fusion_client_core::workspace::default_layout;
 use fusion_hub::{Bus, Ended, Fdc3Context, FromHub, InstrumentIds, ToHub};
-use fusion_launch::{Launcher, LayoutFile, WindowProcesses};
+use fusion_launch::{Launcher, LayoutFile, LayoutMirror, MIRROR_WAIT, WindowProcesses};
 use fusion_layout::{Layout, LinkColour, PanelId, WindowId};
 use fusion_pipe::{HubServer, PipeBus};
 use interprocess::local_socket::{GenericNamespaced, Stream, prelude::*};
@@ -50,6 +50,36 @@ impl WindowProcesses for Fake {
     }
 }
 
+#[derive(Default)]
+struct MirrorState {
+    saved: Vec<String>,
+    settled: Vec<Duration>,
+}
+
+/// A pretend mirror: it records what the launcher asks, and says so.
+#[derive(Clone, Default)]
+struct FakeMirror(Rc<RefCell<MirrorState>>);
+
+impl LayoutMirror for FakeMirror {
+    fn save(&mut self, json: String) {
+        self.0.borrow_mut().saved.push(json);
+    }
+
+    fn poll(&mut self) -> Vec<String> {
+        let saved = self.0.borrow().saved.len();
+        if saved == 0 {
+            Vec::new()
+        } else {
+            vec![format!("mirror holds {saved}")]
+        }
+    }
+
+    fn settle(&mut self, wait: Duration) -> Vec<String> {
+        self.0.borrow_mut().settled.push(wait);
+        vec!["mirror settled".to_owned()]
+    }
+}
+
 struct Rig {
     launcher: Launcher<Fake>,
     fake: Fake,
@@ -60,12 +90,19 @@ struct Rig {
 
 impl Rig {
     fn new(test: &str, layout: Layout) -> Self {
+        Self::build(test, layout, None)
+    }
+
+    fn build(test: &str, layout: Layout, mirror: Option<FakeMirror>) -> Self {
         let tag = format!("fusion-launch-test-{}-{test}", std::process::id());
         let name = format!("{tag}.sock");
         let file = std::env::temp_dir().join(&tag).join("layout.json");
         let fake = Fake::default();
         let server = HubServer::listen(&name).expect("listens");
         let mut launcher = Launcher::new(layout, server, fake.clone(), LayoutFile::new(&file));
+        if let Some(mirror) = mirror {
+            launcher = launcher.with_mirror(Box::new(mirror));
+        }
         launcher.start();
         Self {
             launcher,
@@ -280,6 +317,38 @@ fn a_changed_layout_is_saved_a_moment_later() {
         .expect("loads")
         .expect("saved");
     assert_eq!(saved.groups.get(&PanelId(1)), Some(&LinkColour::Red));
+}
+
+#[test]
+fn the_mirror_gets_each_save_and_settles_at_the_end() {
+    let mirror = FakeMirror::default();
+    let mut rig = Rig::build("mirror", default_layout(), Some(mirror.clone()));
+    let mut main = rig.window(WindowId::MAIN);
+    rig.until(&mut main, is_layout);
+    rig.turn();
+    assert!(rig.log.is_empty(), "nothing saved, nothing said");
+    main.send(ToHub::SetGroup {
+        panel: PanelId(1),
+        colour: Some(LinkColour::Red),
+    });
+    rig.until_rig(|_| !mirror.0.borrow().saved.is_empty());
+    let json = mirror.0.borrow().saved[0].clone();
+    let sent = Layout::from_json(&json).expect("a layout");
+    assert_eq!(sent.groups.get(&PanelId(1)), Some(&LinkColour::Red));
+    assert!(rig.file.exists(), "the file is saved too");
+    rig.turn();
+    assert!(
+        rig.log.contains(&"mirror holds 1".to_owned()),
+        "its lines are logged"
+    );
+
+    rig.launcher.finish(Duration::ZERO);
+    assert_eq!(mirror.0.borrow().settled, [MIRROR_WAIT]);
+    assert!(
+        rig.launcher
+            .take_log()
+            .contains(&"mirror settled".to_owned())
+    );
 }
 
 #[test]

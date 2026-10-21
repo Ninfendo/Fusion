@@ -216,7 +216,8 @@ async fn layouts_are_saved_and_loaded() {
     );
     send(&mut client, load(3, "other")).await;
     assert!(
-        matches!(next(&mut client).await, server_message::Body::Error(e) if e.message == "there is no layout other")
+        matches!(next(&mut client).await, server_message::Body::Ack(a) if a.request == 3 && a.result.is_none()),
+        "no layout by that name: an ack without one"
     );
 }
 
