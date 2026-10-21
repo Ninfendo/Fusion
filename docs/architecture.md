@@ -382,10 +382,10 @@ gate of the one before it passes.
 | Milestone | Builds | Gate: done when |
 | --- | --- | --- |
 | M0 Skeleton (done) | Workspace, CI, domain types, Clock, event journal, order state machine | State machine tests pass for every FIX status change |
-| M1 Dock shell | `fusion-layout`, `fusion-theme`, `fusion-egui-theme`, `fusion-egui-dock`, demo panels on fake data, the desktop app and the browser app | Drag, split, resize and close tabs; the layout is saved and restored; light and dark theme; the same app runs on the desktop and in Chrome |
-| M2 Client building blocks | Launcher, one process per window, local hub, configurable links, pop out and pop in | A watchlist click moves only the linked L2 panel in another window; a killed window comes back with its panels |
-| M3 Market data | Binance testnet WebSocket in, normalised trades, prices and books, Parquet recording | 24 hours with no gaps; replay rebuilds the same books |
-| M4 View server and live screens | Viewports, conflation, the Protobuf protocol; the panels switch from fake data to the view server; layouts saved in PostgreSQL | 500 instruments at full tick rate; the UI keeps 60 frames a second |
+| M1 Dock shell (done) | `fusion-layout`, `fusion-theme`, `fusion-egui-theme`, `fusion-egui-dock`, demo panels on fake data, the desktop app and the browser app | Drag, split, resize and close tabs; the layout is saved and restored; light and dark theme; the same app runs on the desktop and in Chrome |
+| M2 Client building blocks (done) | Launcher, one process per window, local hub, configurable links, pop out and pop in | A watchlist click moves only the linked L2 panel in another window; a killed window comes back with its panels |
+| M3 Market data (code done; the 24-hour run ends 2026-10-21) | Binance testnet WebSocket in, normalised trades, prices and books, Parquet recording | 24 hours with no gaps; replay rebuilds the same books |
+| M4 View server and live screens (done: see Performance rules) | Viewports, conflation, the Protobuf protocol; the panels switch from fake data to the view server; layouts saved in PostgreSQL | 500 instruments at full tick rate; the UI keeps 60 frames a second |
 | M5 Orders over FIX | FIX session to the testnet, order ticket, blotter, risk checks, kill switch, order events in PostgreSQL | Place, replace and cancel work; a restart mid-order recovers state |
 | M6 Rules scanner | Features, CEL conditions, alerts table and panel | A volume-spike rule fires correctly on recorded data |
 | M7 Algos and backtest | TWAP, POV, iceberg; simulated venue on recordings | Backtest and testnet make the same decisions on the same events |
