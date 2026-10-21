@@ -152,6 +152,23 @@ impl RemoteLayouts {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+/// How often the blocking waits look at the link, in milliseconds.
+#[cfg(not(target_arch = "wasm32"))]
+const ROUND_MS: u128 = 10;
+
+/// The rounds of [`ROUND_MS`] in `wait`. The waits count rounds instead
+/// of reading the clock, so they always end.
+#[cfg(not(target_arch = "wasm32"))]
+fn rounds(wait: std::time::Duration) -> u128 {
+    wait.as_millis() / ROUND_MS
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn round() {
+    std::thread::sleep(std::time::Duration::from_millis(10));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 impl RemoteLayouts {
     /// Waits up to `wait` for the answer to the load. `None` if it did not
     /// come in time. Other events that come meanwhile are dropped.
@@ -159,26 +176,28 @@ impl RemoteLayouts {
         &mut self,
         wait: std::time::Duration,
     ) -> Option<Result<Option<String>, String>> {
-        let end = std::time::Instant::now() + wait;
-        loop {
+        for _ in 0..=rounds(wait) {
             let loaded = self.poll().into_iter().find_map(|event| match event {
                 RemoteEvent::Loaded(answer) => Some(answer),
                 RemoteEvent::SaveFailed(_) => None,
             });
-            if loaded.is_some() || std::time::Instant::now() >= end {
+            if loaded.is_some() {
                 return loaded;
             }
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            round();
         }
+        None
     }
 
     /// Waits up to `wait` until the server confirmed the last save. Returns
-    /// the failures that came in meanwhile.
+    /// the events that came in meanwhile.
     pub fn settle(&mut self, wait: std::time::Duration) -> Vec<RemoteEvent> {
-        let end = std::time::Instant::now() + wait;
         let mut events = self.poll();
-        while self.pending() && std::time::Instant::now() < end {
-            std::thread::sleep(std::time::Duration::from_millis(10));
+        for _ in 0..rounds(wait) {
+            if !self.pending() {
+                break;
+            }
+            round();
             events.extend(self.poll());
         }
         events

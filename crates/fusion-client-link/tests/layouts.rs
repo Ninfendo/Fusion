@@ -137,8 +137,10 @@ fn failures_are_reported_and_strangers_ignored() {
         // Not about any request of this client: ignored.
         reply(&mut ws, ack(99, None)).await;
         reply(&mut ws, server_message::Body::Snapshot(Snapshot::default())).await;
+        let mut numbers = Vec::new();
         for _ in 0..2 {
             let request = read(&mut ws).await.request;
+            numbers.push(request);
             let message = "the store is down".to_owned();
             let failed = Error {
                 request,
@@ -147,6 +149,7 @@ fn failures_are_reported_and_strangers_ignored() {
             };
             reply(&mut ws, server_message::Body::Error(failed)).await;
         }
+        assert_eq!(numbers, [1, 2], "each request has its own number");
     });
     let mut layouts = RemoteLayouts::connect(&url(&address), "main", || {}).expect("starts");
     assert_eq!(
@@ -190,5 +193,71 @@ fn what_was_not_answered_is_asked_again_after_a_lost_connection() {
     layouts.save(r#"{"b":2}"#.into());
     assert_eq!(layouts.settle(WAIT), []);
     assert!(!layouts.pending());
+    server.join().expect("the script ran");
+}
+
+#[test]
+fn a_save_waits_until_the_load_is_answered() {
+    let (address, server) = fake_server(1, |_, mut ws| async move {
+        let load = read(&mut ws).await;
+        assert!(matches!(
+            load.body,
+            Some(client_message::Body::LoadLayout(_))
+        ));
+        // Nothing else comes while the load is unanswered.
+        let early = tokio::time::timeout(Duration::from_millis(300), ws.next()).await;
+        assert!(early.is_err(), "the save came early: {early:?}");
+        reply(&mut ws, ack(load.request, Some(r#"{"old":1}"#))).await;
+        let save = read(&mut ws).await;
+        assert!(matches!(
+            save.body,
+            Some(client_message::Body::SaveLayout(_))
+        ));
+        reply(&mut ws, ack(save.request, None)).await;
+    });
+    let mut layouts = RemoteLayouts::connect(&url(&address), "main", || {}).expect("starts");
+    layouts.save(r#"{"new":2}"#.into());
+    let events = layouts.settle(WAIT);
+    assert_eq!(
+        events,
+        [RemoteEvent::Loaded(Ok(Some(r#"{"old":1}"#.to_owned())))],
+        "the load shows what was there before the save"
+    );
+    assert!(!layouts.pending());
+    server.join().expect("the script ran");
+}
+
+#[test]
+fn the_waits_end_on_time_when_nothing_answers() {
+    let (address, server) = fake_server(1, |_, mut ws| async move {
+        let load = read(&mut ws).await;
+        reply(&mut ws, ack(load.request, None)).await;
+        // The save is read and never answered.
+        read(&mut ws).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    });
+    let mut layouts = RemoteLayouts::connect(&url(&address), "main", || {}).expect("starts");
+    assert_eq!(layouts.wait_loaded(WAIT), Some(Ok(None)));
+    let started = std::time::Instant::now();
+    assert_eq!(
+        layouts.wait_loaded(Duration::from_millis(100)),
+        None,
+        "asked once"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
+    layouts.save("{}".into());
+    let started = std::time::Instant::now();
+    assert_eq!(layouts.settle(Duration::from_millis(200)), []);
+    let took = started.elapsed();
+    assert!(layouts.pending(), "still not confirmed");
+    assert!(took >= Duration::from_millis(150), "waited: {took:?}");
+    assert!(
+        took < Duration::from_secs(1),
+        "but not much longer: {took:?}"
+    );
     server.join().expect("the script ran");
 }

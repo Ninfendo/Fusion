@@ -46,30 +46,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let folder = config_dir(std::env::consts::OS, |name| std::env::var_os(name))
         .ok_or("there is no home folder to keep the layout in")?;
     let file = LayoutFile::new(folder.join("layout.json"));
-    let local = || match file.load() {
-        Ok(Some(layout)) => layout,
-        Ok(None) => default_layout(),
-        Err(err) => {
-            eprintln!("The saved layout could not be loaded ({err}); using the default.");
-            default_layout()
-        }
-    };
-    let (layout, mirror) = match &view_server {
-        Some(url) => {
-            let mut remote = RemoteLayouts::connect(url, SERVER_LAYOUT, || {})?;
-            let start = starting_layout(remote.wait_loaded(LOAD_WAIT), local);
-            if let Some(note) = start.note {
-                eprintln!("{note}");
-            }
-            if start.send_local
-                && let Ok(json) = start.layout.to_json()
-            {
-                remote.save(json);
-            }
-            (start.layout, Some(ServerMirror(remote)))
-        }
-        None => (local(), None),
-    };
+    let (layout, mirror) = first_layout(view_server.as_deref(), &file)?;
     let name = hub_name(std::process::id());
     let server = HubServer::listen(&name)?;
     let window_program = window_program()?;
@@ -102,6 +79,36 @@ fn run() -> Result<(), Box<dyn Error>> {
     launcher.finish(GRACE);
     print_log(&mut launcher);
     Ok(())
+}
+
+/// The layout to start with, and the view server as a mirror when one is
+/// given: its copy if it has one, else the file's, else the default.
+fn first_layout(
+    view_server: Option<&str>,
+    file: &LayoutFile,
+) -> Result<(Layout, Option<ServerMirror>), Box<dyn Error>> {
+    let local = || match file.load() {
+        Ok(Some(layout)) => layout,
+        Ok(None) => default_layout(),
+        Err(err) => {
+            eprintln!("The saved layout could not be loaded ({err}); using the default.");
+            default_layout()
+        }
+    };
+    let Some(url) = view_server else {
+        return Ok((local(), None));
+    };
+    let mut remote = RemoteLayouts::connect(url, SERVER_LAYOUT, || {})?;
+    let start = starting_layout(remote.wait_loaded(LOAD_WAIT), local);
+    if let Some(note) = start.note {
+        eprintln!("{note}");
+    }
+    if start.send_local
+        && let Ok(json) = start.layout.to_json()
+    {
+        remote.save(json);
+    }
+    Ok((start.layout, Some(ServerMirror(remote))))
 }
 
 fn print_log<P: fusion_launch::WindowProcesses>(launcher: &mut Launcher<P>) {
