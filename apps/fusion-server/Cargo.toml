@@ -10,8 +10,10 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+fusion-domain.workspace = true
 fusion-persistence-pg.workspace = true
 fusion-serve.workspace = true
+fusion-sim.workspace = true
 fusion-venue-binance.workspace = true
 tokio = { workspace = true, features = ["net", "signal"] }
 

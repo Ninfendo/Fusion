@@ -347,6 +347,24 @@ This is Fusion's equivalent of an IoC container. There is no container crate.
   heavy GPU work (millions of points, shaders) may be faster on DX12, Vulkan
   or Metal, and since each window is its own process, a chart window can use
   one of those while the others stay on OpenGL.
+- The load test for the M4 gate: `fusion-server --venue synthetic
+  --instruments 500 --rate 10000` (`fusion-sim`: 500 made-up instruments,
+  10,000 changes a second in all, each book 20 levels a side) and the
+  `frame_time` example of `fusion-ui-egui`, which runs the app with the
+  default layout at 60 frames a second in real time and times each frame
+  (layout and tessellation; not the GPU). The made-up market counts the
+  changes due from the time gone by, because a 10 ms timer ticks about
+  every 15.6 ms on Windows. Measured on Windows, release build, 2026-10-21:
+
+  | Instruments | Changes a second | Frame median | Frame 99% | Worst | Server CPU |
+  | --- | --- | --- | --- | --- | --- |
+  | 12 | 10,000 | 0.9 ms | 3.6 ms | 4.8 ms | 9% of a core |
+  | 500 | 10,000 | 5.2 ms | 8.5 ms | 11.8 ms | 9% of a core |
+  | 500 | 50,000 | 5.3 ms | 11.7 ms | 17.5 ms | 29% of a core |
+
+  A frame has 16.7 ms at 60 frames a second. The cost grows with the
+  instruments, not with the rate: the watchlist lays out all 500 rows every
+  frame, also the ones off screen.
 
 ## Determinism rules
 

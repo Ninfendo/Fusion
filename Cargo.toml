@@ -45,6 +45,7 @@ fusion-recording = { path = "crates/fusion-recording" }
 fusion-protocol = { path = "crates/fusion-protocol" }
 fusion-viewserver = { path = "crates/fusion-viewserver" }
 fusion-serve = { path = "crates/fusion-serve" }
+fusion-sim = { path = "crates/fusion-sim" }
 fusion-client-link = { path = "crates/fusion-client-link" }
 fusion-persistence-pg = { path = "crates/fusion-persistence-pg" }
 fusion-egui-theme = { path = "crates/fusion-egui-theme" }

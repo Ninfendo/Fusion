@@ -44,6 +44,8 @@ cargo run -p fusion-recorder -- record --for-minutes 10            # record Bina
 cargo run -p fusion-recorder -- check recordings                   # replay a recording: gaps, and books rebuilt to the same fingerprints
 cargo run -p fusion-server                                     # the view server on ws://127.0.0.1:7070, fed by the Binance testnet
 cargo run -p fusion-server --example watch -- ws://127.0.0.1:7070 prices 10   # watch a table on a running server
+cargo run --release -p fusion-server -- --venue synthetic --instruments 500 --rate 10000   # a made-up market, no network needed
+cargo run --release -p fusion-ui-egui --example frame_time -- ws://127.0.0.1:7070 20      # the app's frame times on a running server
 ```
 
 The apps show made-up demo data unless they are given a view server. Start
@@ -95,6 +97,7 @@ database tests pass without running; CI runs them on Linux, and there
 | --- | --- |
 | `crates/fusion-domain` | Core types: time, instruments, orders, events, and the repository traits (ports) such as `LayoutStore`. No I/O; builds for wasm32. |
 | `crates/fusion-persistence-pg` | PostgreSQL storage (sqlx): the layouts. Implements the repository traits of `fusion-domain`. |
+| `crates/fusion-sim` | A made-up market for load tests and offline work: any number of instruments, seeded, with books that stay consistent. No I/O. |
 | `crates/fusion-serve` | The view server over WebSocket: sessions polled at their rate, slow clients, layout requests. |
 | `crates/fusion-viewserver` | The view server engine: tables, and viewports that send only the rows in range and only what changed. No I/O. |
 | `crates/fusion-protocol` | The wire protocol between the view server and its clients: Protobuf messages (`proto/`), checked by `buf` in CI. No I/O; builds for wasm32. |
