@@ -233,6 +233,13 @@ Built in milestone 3 (`fusion-venue-binance`, `fusion-recording`,
   no book that had to start again, and no silence over a minute.
 - **Cost:** the recorder uses about 15 MB of memory for 12 testnet symbols,
   and writes about 70 KB of Parquet a minute (about 100 MB a day).
+- **The M3 gate, 2026-10-20 to 21:** 12 testnet symbols recorded for 24.2
+  hours, 1,124,857 rows. The check said CLEAN: no missing trade, no hole in
+  any book, 103,763 fingerprint checks all matched, one snapshot per symbol
+  (no book started again), and the longest silence was 4 seconds. At hour
+  23 the second connection took over from the first without a gap. A run
+  with the first switch rule, the one CI on Linux showed could drop data,
+  was CLEAN as well: the fault never happened on the real testnet.
 
 ## Rules and algos
 
@@ -388,7 +395,7 @@ gate of the one before it passes.
 | M0 Skeleton (done) | Workspace, CI, domain types, Clock, event journal, order state machine | State machine tests pass for every FIX status change |
 | M1 Dock shell (done) | `fusion-layout`, `fusion-theme`, `fusion-egui-theme`, `fusion-egui-dock`, demo panels on fake data, the desktop app and the browser app | Drag, split, resize and close tabs; the layout is saved and restored; light and dark theme; the same app runs on the desktop and in Chrome |
 | M2 Client building blocks (done) | Launcher, one process per window, local hub, configurable links, pop out and pop in | A watchlist click moves only the linked L2 panel in another window; a killed window comes back with its panels |
-| M3 Market data (code done; the 24-hour run ends 2026-10-21) | Binance testnet WebSocket in, normalised trades, prices and books, Parquet recording | 24 hours with no gaps; replay rebuilds the same books |
+| M3 Market data (done: CLEAN over 24.2 hours, see Market data) | Binance testnet WebSocket in, normalised trades, prices and books, Parquet recording | 24 hours with no gaps; replay rebuilds the same books |
 | M4 View server and live screens (done: see Performance rules) | Viewports, conflation, the Protobuf protocol; the panels switch from fake data to the view server; layouts saved in PostgreSQL | 500 instruments at full tick rate; the UI keeps 60 frames a second |
 | M5 Orders over FIX | FIX session to the testnet, order ticket, blotter, risk checks, kill switch, order events in PostgreSQL | Place, replace and cancel work; a restart mid-order recovers state |
 | M6 Rules scanner | Features, CEL conditions, alerts table and panel | A volume-spike rule fires correctly on recorded data |
