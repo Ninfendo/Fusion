@@ -175,12 +175,16 @@ impl Shared {
         }
     }
 
-    /// The tab is going away. The hub tab saves and ends every tab; a
-    /// popped-out window's panels go back to the main window.
+    /// The tab is going away. The hub tab saves a change still waiting for
+    /// its timer, and ends every tab; a popped-out window's panels go back
+    /// to the main window. An unchanged layout is not saved: it would
+    /// overwrite a newer copy on the view server.
     fn leaving(&mut self) {
         match self.role {
             Role::Hub(_) => {
-                self.save();
+                if self.save_pending {
+                    self.save();
+                }
                 self.send(ToHub::CloseWindow {
                     window: WindowId::MAIN,
                 });
