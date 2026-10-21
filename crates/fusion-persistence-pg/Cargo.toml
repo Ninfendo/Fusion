@@ -1,0 +1,20 @@
+[package]
+name = "fusion-persistence-pg"
+description = "PostgreSQL storage for Fusion: the repository traits of fusion-domain, kept in PostgreSQL with sqlx. The tables come from the migrations built into the crate."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+fusion-domain.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

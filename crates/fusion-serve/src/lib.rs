@@ -10,7 +10,6 @@
 //! database never holds up prices.
 
 mod connection;
-mod layouts;
 mod outbox;
 
 use std::collections::BTreeMap;
@@ -24,7 +23,7 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-pub use layouts::{LayoutStore, MemoryLayouts};
+pub use fusion_domain::{LayoutStore, MemoryLayouts};
 
 use outbox::{Delivery, Outbox};
 
