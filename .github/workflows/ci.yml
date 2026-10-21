@@ -60,7 +60,7 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       # Every crate the browser client will use must build for wasm32.
-      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout -p fusion-theme -p fusion-client-core -p fusion-hub -p fusion-protocol -p fusion-ui-egui -p fusion-web
+      - run: cargo build --locked --target wasm32-unknown-unknown -p fusion-domain -p fusion-layout -p fusion-theme -p fusion-client-core -p fusion-client-link -p fusion-hub -p fusion-protocol -p fusion-ui-egui -p fusion-web
       - name: Lint the browser build
         run: cargo clippy --locked --target wasm32-unknown-unknown -p fusion-web
       - uses: taiki-e/install-action@v2

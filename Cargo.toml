@@ -44,6 +44,7 @@ fusion-recording = { path = "crates/fusion-recording" }
 fusion-protocol = { path = "crates/fusion-protocol" }
 fusion-viewserver = { path = "crates/fusion-viewserver" }
 fusion-serve = { path = "crates/fusion-serve" }
+fusion-client-link = { path = "crates/fusion-client-link" }
 fusion-egui-theme = { path = "crates/fusion-egui-theme" }
 fusion-egui-dock = { path = "crates/fusion-egui-dock" }
 fusion-ui-egui = { path = "crates/fusion-ui-egui" }
@@ -52,6 +53,7 @@ eframe = { version = "0.37.0", features = ["persistence"] }
 egui_tiles = "0.18.0"
 egui_kittest = "0.37.0"
 js-sys = "0.3.106"
+wasm-bindgen = "0.2.129"
 wasm-bindgen-futures = "0.4.79"
 web-sys = "0.3.106"
 
