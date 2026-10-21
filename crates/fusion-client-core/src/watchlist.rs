@@ -68,26 +68,35 @@ impl WatchlistModel {
         self.selected.as_deref()
     }
 
-    /// Takes new quotes. A row whose last price changed gets a new
-    /// [`Move`] and `moved_at = now`.
-    pub fn apply_quotes(&mut self, quotes: &[Quote], now: f64) {
-        let mut rows = Vec::with_capacity(quotes.len());
-        for quote in quotes {
-            let previous = self.rows.iter().find(|r| r.quote.symbol == quote.symbol);
-            let (last_move, moved_at) = match previous {
-                Some(row) if quote.last > row.quote.last => (Move::Up, now),
-                Some(row) if quote.last < row.quote.last => (Move::Down, now),
-                Some(row) => (row.last_move, row.moved_at),
-                None => (Move::None, now),
-            };
-            rows.push(Row {
-                quote: quote.clone(),
-                change_pct: change_pct(quote.last, quote.open),
-                last_move,
-                moved_at,
-            });
-        }
-        self.rows = rows;
+    /// Takes new quotes, once a frame. A row whose last price changed gets
+    /// a new [`Move`] and `moved_at = now`. The quotes usually come in the
+    /// same order every frame, so a row's old state is looked for at its
+    /// own place first and searched for only when the order changed.
+    pub fn apply_quotes(&mut self, quotes: Vec<Quote>, now: f64) {
+        let old = std::mem::take(&mut self.rows);
+        let same = |row: &&Row, quote: &Quote| row.quote.symbol == quote.symbol;
+        self.rows = quotes
+            .into_iter()
+            .enumerate()
+            .map(|(at, quote)| {
+                let previous = old
+                    .get(at)
+                    .filter(|row| same(row, &quote))
+                    .or_else(|| old.iter().find(|row| same(row, &quote)));
+                let (last_move, moved_at) = match previous {
+                    Some(row) if quote.last > row.quote.last => (Move::Up, now),
+                    Some(row) if quote.last < row.quote.last => (Move::Down, now),
+                    Some(row) => (row.last_move, row.moved_at),
+                    None => (Move::None, now),
+                };
+                Row {
+                    change_pct: change_pct(quote.last, quote.open),
+                    quote,
+                    last_move,
+                    moved_at,
+                }
+            })
+            .collect();
     }
 
     /// Applies a user action and returns what the app must do next.
@@ -121,7 +130,7 @@ mod tests {
     #[test]
     fn rows_follow_the_quotes() {
         let mut model = WatchlistModel::default();
-        model.apply_quotes(&[quote("A", "10", "10"), quote("B", "20", "20")], 1.0);
+        model.apply_quotes(vec![quote("A", "10", "10"), quote("B", "20", "20")], 1.0);
         let symbols: Vec<&str> = model
             .rows()
             .iter()
@@ -134,19 +143,39 @@ mod tests {
     #[test]
     fn a_price_change_records_its_direction_and_time() {
         let mut model = WatchlistModel::default();
-        model.apply_quotes(&[quote("A", "10", "10"), quote("B", "20", "20")], 1.0);
-        model.apply_quotes(&[quote("A", "11", "10"), quote("B", "19", "20")], 2.0);
+        model.apply_quotes(vec![quote("A", "10", "10"), quote("B", "20", "20")], 1.0);
+        model.apply_quotes(vec![quote("A", "11", "10"), quote("B", "19", "20")], 2.0);
         assert_eq!(model.rows()[0].last_move, Move::Up);
         assert_eq!(model.rows()[1].last_move, Move::Down);
         assert!((model.rows()[0].moved_at - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]
+    fn a_new_order_keeps_each_row_s_own_state() {
+        let mut model = WatchlistModel::default();
+        model.apply_quotes(vec![quote("A", "10", "10"), quote("B", "20", "20")], 1.0);
+        model.apply_quotes(vec![quote("B", "20", "20"), quote("A", "10", "10")], 2.0);
+        let moves: Vec<(&str, Move)> = model
+            .rows()
+            .iter()
+            .map(|r| (r.quote.symbol.as_str(), r.last_move))
+            .collect();
+        assert_eq!(
+            moves,
+            [("B", Move::None), ("A", Move::None)],
+            "no price moved"
+        );
+        model.apply_quotes(vec![quote("C", "5", "5"), quote("A", "9", "10")], 3.0);
+        assert_eq!(model.rows()[0].last_move, Move::None, "new");
+        assert_eq!(model.rows()[1].last_move, Move::Down);
+    }
+
+    #[test]
     fn an_unchanged_price_keeps_its_last_move_and_time() {
         let mut model = WatchlistModel::default();
-        model.apply_quotes(&[quote("A", "10", "10")], 1.0);
-        model.apply_quotes(&[quote("A", "11", "10")], 2.0);
-        model.apply_quotes(&[quote("A", "11", "10")], 3.0);
+        model.apply_quotes(vec![quote("A", "10", "10")], 1.0);
+        model.apply_quotes(vec![quote("A", "11", "10")], 2.0);
+        model.apply_quotes(vec![quote("A", "11", "10")], 3.0);
         assert_eq!(model.rows()[0].last_move, Move::Up);
         assert!((model.rows()[0].moved_at - 2.0).abs() < f64::EPSILON);
     }
@@ -154,7 +183,10 @@ mod tests {
     #[test]
     fn change_is_measured_from_the_open() {
         let mut model = WatchlistModel::default();
-        model.apply_quotes(&[quote("A", "105", "100"), quote("B", "0.3", "0.4")], 1.0);
+        model.apply_quotes(
+            vec![quote("A", "105", "100"), quote("B", "0.3", "0.4")],
+            1.0,
+        );
         assert_eq!(
             model.rows()[0].change_pct,
             "5".parse::<Decimal>().expect("valid")
@@ -168,7 +200,7 @@ mod tests {
     #[test]
     fn a_zero_open_gives_zero_change() {
         let mut model = WatchlistModel::default();
-        model.apply_quotes(&[quote("A", "1", "0")], 1.0);
+        model.apply_quotes(vec![quote("A", "1", "0")], 1.0);
         assert_eq!(model.rows()[0].change_pct, Decimal::ZERO);
     }
 

@@ -54,6 +54,8 @@ fusion-ui-egui = { path = "crates/fusion-ui-egui" }
 egui = "0.37.0"
 eframe = { version = "0.37.0", features = ["persistence"] }
 egui_tiles = "0.18.0"
+# Tables only: no image or file loaders.
+egui_extras = { version = "0.37.0", default-features = false }
 egui_kittest = "0.37.0"
 js-sys = "0.3.106"
 wasm-bindgen = "0.2.129"
