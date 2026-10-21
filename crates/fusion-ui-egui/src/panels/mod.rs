@@ -7,7 +7,7 @@ mod watchlist;
 
 use std::collections::VecDeque;
 
-use fusion_client_core::demo::DemoMarket;
+use fusion_client_core::MarketData;
 use fusion_client_core::links::Context;
 use fusion_client_core::workspace::kind;
 use fusion_layout::{Gesture, PanelId};
@@ -35,8 +35,8 @@ pub struct PanelContext<'a> {
     pub panel: PanelId,
     /// The colour tokens.
     pub theme: &'a Theme,
-    /// The market the panels show. A demo market until the view server exists.
-    pub market: &'a DemoMarket,
+    /// The market the panels show: made-up or live.
+    pub market: &'a dyn MarketData,
     /// Seconds on the app's clock.
     pub now: f64,
     /// The app's event log.
@@ -87,6 +87,13 @@ pub trait PanelView {
     /// Takes a selection made in a linked panel. A received context is
     /// never sent on, so links cannot loop.
     fn receive(&mut self, _context: &Context, _events: &mut Events) {}
+
+    /// The instrument whose order book this panel shows, if any. The app
+    /// asks every panel in the window each frame, shown or not, so a ladder
+    /// in a hidden tab stays current.
+    fn book(&self) -> Option<&str> {
+        None
+    }
 }
 
 pub use fusion_client_core::workspace::{KINDS, PanelKind};

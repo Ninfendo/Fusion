@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use eframe::Storage as _;
 use egui_kittest::{Harness, kittest::Queryable as _};
@@ -188,15 +188,102 @@ fn the_theme_changes_only_when_it_differs() {
     assert_eq!(app.theme(), Theme::new(Mode::Light, true));
 }
 
+/// What the app asked of a [`FakeFeed`].
+#[derive(Default)]
+struct Asked {
+    updates: Vec<f64>,
+    books: Vec<BTreeSet<String>>,
+}
+
+/// A market feed that records what the app asks, with a status the test
+/// sets.
+struct FakeFeed {
+    asked: Rc<RefCell<Asked>>,
+    status: Rc<RefCell<FeedStatus>>,
+}
+
+impl fusion_client_core::MarketData for FakeFeed {
+    fn quotes(&self) -> Vec<fusion_client_core::Quote> {
+        Vec::new()
+    }
+
+    fn symbols(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    fn book(&self, _symbol: &str, _depth: usize) -> Option<fusion_client_core::Book> {
+        None
+    }
+}
+
+impl MarketFeed for FakeFeed {
+    fn update(&mut self, now: f64) {
+        self.asked.borrow_mut().updates.push(now);
+    }
+
+    fn want_books(&mut self, symbols: &BTreeSet<String>) {
+        self.asked.borrow_mut().books.push(symbols.clone());
+    }
+
+    fn status(&self) -> FeedStatus {
+        self.status.borrow().clone()
+    }
+}
+
 #[test]
-fn the_market_steps_every_100_milliseconds() {
+fn each_tick_updates_the_feed_and_names_the_books_shown() {
     let mut app = FusionApp::from_saved(None, None);
-    app.tick(0.0);
-    assert_eq!(app.market.steps(), 1);
-    app.tick(0.05);
-    assert_eq!(app.market.steps(), 1);
-    app.tick(0.1);
-    assert_eq!(app.market.steps(), 2);
+    let asked = Rc::new(RefCell::new(Asked::default()));
+    let status = Rc::new(RefCell::new(FeedStatus::Connecting));
+    app.set_market(Box::new(FakeFeed {
+        asked: Rc::clone(&asked),
+        status: Rc::clone(&status),
+    }));
+    assert_eq!(app.market_status(), None, "nothing shown before a tick");
+
+    app.tick(0.5);
+    assert_eq!(asked.borrow().updates, [0.5]);
+    assert_eq!(
+        asked.borrow().books,
+        [BTreeSet::new()],
+        "no ladder drawn yet"
+    );
+    assert_eq!(app.market_status(), Some(&FeedStatus::Connecting));
+    assert!(has_event(&app, "Market: Connecting to the view server"));
+
+    // A linked selection sets the ladder's instrument, drawn or not.
+    for view in app.views.values_mut() {
+        view.receive(&Context::instrument("ETHUSDT"), &mut Events::default());
+    }
+    *status.borrow_mut() = FeedStatus::Live;
+    app.tick(0.6);
+    assert_eq!(
+        asked.borrow().books.last(),
+        Some(&BTreeSet::from(["ETHUSDT".to_owned()]))
+    );
+    assert!(has_event(&app, "Market: Live"));
+    let logged = app.events().len();
+    app.tick(0.7);
+    assert_eq!(
+        app.events().len(),
+        logged,
+        "an unchanged status is not logged again"
+    );
+}
+
+#[test]
+fn each_status_has_its_colour() {
+    let theme = Theme::dark();
+    assert_eq!(status_colour(&FeedStatus::Demo, &theme), theme.text_muted);
+    assert_eq!(
+        status_colour(&FeedStatus::Connecting, &theme),
+        theme.warning
+    );
+    assert_eq!(status_colour(&FeedStatus::Live, &theme), theme.text);
+    assert_eq!(
+        status_colour(&FeedStatus::Away("gone".into()), &theme),
+        theme.error
+    );
 }
 
 #[test]
@@ -227,7 +314,7 @@ fn a_panel_without_a_view_draws_nothing() {
         can_move: false,
         views: &mut app.views,
         theme: &theme,
-        market: &app.market,
+        market: &*app.market,
         now: 0.0,
         events: &mut app.events,
         outbox: &mut outbox,
@@ -488,6 +575,7 @@ fn the_app_shows_the_three_panels_with_data() {
         "ETHUSDT",
         "Panels",
         "View",
+        "Demo data",
     ] {
         assert!(
             harness.query_by_label(label).is_some(),

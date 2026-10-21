@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Color32, Stroke, StrokeKind, WidgetText};
-use fusion_client_core::demo::DemoMarket;
+use fusion_client_core::MarketData;
 use fusion_egui_dock::PanelHost;
 use fusion_egui_theme::color;
 use fusion_layout::{Layout, LinkColour, PanelId, WindowId};
@@ -110,7 +110,7 @@ pub(super) struct Host<'a> {
     pub can_move: bool,
     pub views: &'a mut BTreeMap<PanelId, Box<dyn PanelView>>,
     pub theme: &'a Theme,
-    pub market: &'a DemoMarket,
+    pub market: &'a dyn MarketData,
     pub now: f64,
     pub events: &'a mut Events,
     pub outbox: &'a mut Vec<Outgoing>,

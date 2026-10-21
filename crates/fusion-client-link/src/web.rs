@@ -27,7 +27,7 @@ pub struct WebLink {
 impl WebLink {
     /// Starts connecting to `url` (for example `ws://127.0.0.1:7070`).
     /// `wake` runs after each event.
-    pub fn connect(url: &str, wake: impl Fn() + 'static) -> std::io::Result<Self> {
+    pub fn connect(url: &str, wake: impl crate::Wake) -> std::io::Result<Self> {
         let shared = Rc::new(RefCell::new(Shared {
             url: url.to_owned(),
             socket: None,

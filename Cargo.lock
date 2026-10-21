@@ -1540,6 +1540,7 @@ dependencies = [
 name = "fusion-client-link"
 version = "0.0.1"
 dependencies = [
+ "fusion-client-core",
  "fusion-domain",
  "fusion-protocol",
  "fusion-serve",
@@ -1733,6 +1734,7 @@ version = "0.0.1"
 dependencies = [
  "eframe",
  "fusion-client-core",
+ "fusion-client-link",
  "fusion-hub",
  "fusion-layout",
  "fusion-ui-egui",
@@ -1746,6 +1748,7 @@ name = "fusion-window"
 version = "0.0.1"
 dependencies = [
  "eframe",
+ "fusion-client-link",
  "fusion-layout",
  "fusion-pipe",
  "fusion-ui-egui",

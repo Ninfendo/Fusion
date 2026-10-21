@@ -6,7 +6,9 @@
 
 use fusion_domain::{Decimal, Price, Quantity};
 
-use crate::market::{Book, Level, Quote};
+use std::collections::BTreeSet;
+
+use crate::market::{Book, FeedStatus, Level, MarketData, MarketFeed, Quote};
 
 /// SplitMix64: a small, fast, seeded random generator. Fine for fake data;
 /// never use it for anything secret.
@@ -288,11 +290,38 @@ mod tests {
         }
         assert_ne!(DemoRng::new(1).next_u64(), DemoRng::new(2).next_u64());
     }
+
+    #[test]
+    fn the_feed_steps_once_per_step_time() {
+        let mut feed = DemoFeed::new(1);
+        feed.update(0.0);
+        assert_eq!(feed.market().steps(), 1, "the first update moves at once");
+        feed.update(0.05);
+        assert_eq!(feed.market().steps(), 1, "too soon");
+        feed.update(0.1);
+        assert_eq!(feed.market().steps(), 2, "just in time");
+        feed.update(9.0);
+        assert_eq!(feed.market().steps(), 3, "one step after a long sleep");
+        feed.want_books(&BTreeSet::from(["BTCUSDT".to_owned()]));
+        assert_eq!(feed.status(), FeedStatus::Demo);
+        assert_eq!(feed.status().to_string(), "Demo data");
+    }
+
+    #[test]
+    fn the_feed_shows_its_market() {
+        let feed = DemoFeed::new(1);
+        assert_eq!(feed.quotes(), feed.market().quotes());
+        assert_eq!(
+            MarketData::symbols(&feed),
+            MarketData::symbols(feed.market())
+        );
+        let symbol = MarketData::symbols(&feed).remove(0);
+        assert_eq!(feed.book(&symbol, 5), feed.market().book(&symbol, 5));
+        assert!(feed.book(&symbol, 5).is_some());
+    }
 }
 
-/// Golden tests: they pin the exact output, so any change to the generator
-/// or the walk shows up. The demo market is meant to be exactly repeatable.
-impl crate::market::MarketData for DemoMarket {
+impl MarketData for DemoMarket {
     fn quotes(&self) -> Vec<Quote> {
         DemoMarket::quotes(self)
     }
@@ -309,6 +338,65 @@ impl crate::market::MarketData for DemoMarket {
     }
 }
 
+/// How often the demo market moves, in seconds.
+pub const DEMO_STEP: f64 = 0.1;
+
+/// The demo market as the app's feed: it moves every [`DEMO_STEP`].
+#[derive(Debug, Clone)]
+pub struct DemoFeed {
+    market: DemoMarket,
+    next_step_at: f64,
+}
+
+impl DemoFeed {
+    /// A feed from a market at its opening prices.
+    pub fn new(seed: u64) -> Self {
+        Self {
+            market: DemoMarket::new(seed),
+            next_step_at: 0.0,
+        }
+    }
+
+    /// The market behind the feed.
+    pub fn market(&self) -> &DemoMarket {
+        &self.market
+    }
+}
+
+impl MarketData for DemoFeed {
+    fn quotes(&self) -> Vec<Quote> {
+        self.market.quotes()
+    }
+
+    fn symbols(&self) -> Vec<String> {
+        MarketData::symbols(&self.market)
+    }
+
+    fn book(&self, symbol: &str, depth: usize) -> Option<Book> {
+        self.market.book(symbol, depth)
+    }
+}
+
+impl MarketFeed for DemoFeed {
+    /// One step when it is time; never more than one, so a window that
+    /// slept does not jump.
+    fn update(&mut self, now: f64) {
+        if now >= self.next_step_at {
+            self.market.step();
+            self.next_step_at = now + DEMO_STEP;
+        }
+    }
+
+    /// Every book is made up when asked for, so there is nothing to do.
+    fn want_books(&mut self, _symbols: &BTreeSet<String>) {}
+
+    fn status(&self) -> FeedStatus {
+        FeedStatus::Demo
+    }
+}
+
+/// Golden tests: they pin the exact output, so any change to the generator
+/// or the walk shows up. The demo market is meant to be exactly repeatable.
 #[cfg(test)]
 mod golden {
     use super::*;

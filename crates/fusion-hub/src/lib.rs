@@ -30,5 +30,6 @@ pub use protocol::{Fdc3Context, FromHub, InstrumentIds, ToHub, decode, encode};
 pub use supervisor::{AfterExit, CRASH_SPAN, Ended, MAX_CRASHES, Supervisor};
 pub use switchboard::{ConnId, Switchboard};
 pub use tabs::{
-    Envelope, POPUP_WAIT_SECONDS, PendingPopups, Popup, TabHub, TabReply, window_from_query,
+    Envelope, POPUP_WAIT_SECONDS, PendingPopups, Popup, TabHub, TabReply, query_for_window,
+    window_from_query,
 };
