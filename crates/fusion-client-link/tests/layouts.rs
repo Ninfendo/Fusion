@@ -20,6 +20,11 @@ use common::{free_address, start_server};
 
 const WAIT: Duration = Duration::from_secs(10);
 
+/// The most a short wait may take. A 10 ms sleep can last far longer on a
+/// busy CI runner (a 200 ms wait took 1.1 s on macOS), but a wait that ran
+/// a hundred times too long would take 20 s.
+const SLOW_RUNNER: Duration = Duration::from_secs(5);
+
 fn url(address: &str) -> String {
     format!("ws://{address}")
 }
@@ -244,20 +249,13 @@ fn the_waits_end_on_time_when_nothing_answers() {
         None,
         "asked once"
     );
-    assert!(
-        started.elapsed() < Duration::from_secs(1),
-        "{:?}",
-        started.elapsed()
-    );
+    assert!(started.elapsed() < SLOW_RUNNER, "{:?}", started.elapsed());
     layouts.save("{}".into());
     let started = std::time::Instant::now();
     assert_eq!(layouts.settle(Duration::from_millis(200)), []);
     let took = started.elapsed();
     assert!(layouts.pending(), "still not confirmed");
     assert!(took >= Duration::from_millis(150), "waited: {took:?}");
-    assert!(
-        took < Duration::from_secs(1),
-        "but not much longer: {took:?}"
-    );
+    assert!(took < SLOW_RUNNER, "but not much longer: {took:?}");
     server.join().expect("the script ran");
 }
