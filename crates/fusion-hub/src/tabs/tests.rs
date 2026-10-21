@@ -161,3 +161,14 @@ fn the_page_address_names_the_window() {
     assert_eq!(window_from_query("window=5"), WindowId(5));
     assert_eq!(window_from_query("?window=x"), MAIN);
 }
+
+#[test]
+fn another_window_keeps_the_rest_of_the_query() {
+    assert_eq!(query_for_window("", WindowId(2)), "?window=2");
+    assert_eq!(query_for_window("?window=1", WindowId(2)), "?window=2");
+    assert_eq!(
+        query_for_window("?server=ws://h:7070&window=1&x=y", WindowId(3)),
+        "?server=ws://h:7070&x=y&window=3"
+    );
+    assert_eq!(query_for_window("?&a=b&", WindowId(4)), "?a=b&window=4");
+}

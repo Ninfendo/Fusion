@@ -4,16 +4,18 @@
 mod host;
 mod links_window;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
-use fusion_client_core::demo::DemoMarket;
+use fusion_client_core::demo::DemoFeed;
 use fusion_client_core::links::{LinkDraft, linked_panels};
 use fusion_client_core::workspace::{default_layout, title_of};
+use fusion_client_core::{FeedStatus, MarketFeed};
 use fusion_egui_dock::{DockOutput, DockTree, to_node, to_tree};
+use fusion_egui_theme::color;
 use fusion_hub::{Bus, Fdc3Context, FromHub, LocalBus, ToHub};
 use fusion_layout::{Layout, Node, PanelId, WindowId};
-use fusion_theme::{Mode, Theme};
+use fusion_theme::{Mode, Rgba, Theme};
 
 use crate::panels::{Events, KINDS, Outgoing, PanelView, create};
 use host::{FrameInput, Host, Move};
@@ -28,8 +30,19 @@ fn dock_id() -> egui::Id {
     egui::Id::unique("fusion-dock")
 }
 
-/// How often the demo market moves.
+/// The longest a window goes without drawing: the demo market moves, and
+/// price flashes fade. A live feed also wakes the window when data comes.
 const STEP: Duration = Duration::from_millis(100);
+
+/// The colour of the market status in the menu bar.
+fn status_colour(status: &FeedStatus, theme: &Theme) -> Rgba {
+    match status {
+        FeedStatus::Demo => theme.text_muted,
+        FeedStatus::Connecting => theme.warning,
+        FeedStatus::Live => theme.text,
+        FeedStatus::Away(_) => theme.error,
+    }
+}
 
 /// The saved form of a theme choice: `dark`, `light`, `dark+cb`, `light+cb`.
 pub fn theme_to_text(mode: Mode, colour_blind: bool) -> String {
@@ -74,8 +87,9 @@ pub struct FusionApp {
     mode: Mode,
     colour_blind: bool,
     theme_dirty: bool,
-    market: DemoMarket,
-    next_step_at: f64,
+    market: Box<dyn MarketFeed>,
+    /// The market status last logged and shown.
+    status: Option<FeedStatus>,
     events: Events,
     /// The panel under the pointer last frame; its linked panels get an
     /// outline.
@@ -130,8 +144,8 @@ impl FusionApp {
             mode,
             colour_blind,
             theme_dirty: true,
-            market: DemoMarket::new(1),
-            next_step_at: 0.0,
+            market: Box::new(DemoFeed::new(1)),
+            status: None,
             events: Events::default(),
             hovered: None,
             links_open: false,
@@ -141,6 +155,18 @@ impl FusionApp {
         };
         app.pump();
         app
+    }
+
+    /// Shows market data from `market` instead of the demo market, for
+    /// example a live feed from the view server.
+    pub fn set_market(&mut self, market: Box<dyn MarketFeed>) {
+        self.market = market;
+        self.status = None;
+    }
+
+    /// The market status, as last shown.
+    pub fn market_status(&self) -> Option<&FeedStatus> {
+        self.status.as_ref()
     }
 
     /// The layout, as the hub last sent it.
@@ -310,11 +336,21 @@ impl FusionApp {
         self.title_shown.clone()
     }
 
-    /// Moves the demo market when it is time.
+    /// Brings the market up to date, names the books this window's panels
+    /// show, and logs a change of market status.
     fn tick(&mut self, now: f64) {
-        if now >= self.next_step_at {
-            self.market.step();
-            self.next_step_at = now + STEP.as_secs_f64();
+        self.market.update(now);
+        let books: BTreeSet<String> = self
+            .views
+            .values()
+            .filter_map(|view| view.book())
+            .map(str::to_owned)
+            .collect();
+        self.market.want_books(&books);
+        let status = self.market.status();
+        if self.status.as_ref() != Some(&status) {
+            self.events.push(format!("Market: {status}"));
+            self.status = Some(status);
         }
     }
 
@@ -324,7 +360,19 @@ impl FusionApp {
                 ui.menu_button("Panels", |ui| self.panels_menu(ui));
                 ui.menu_button("Layout", |ui| self.layout_menu(ui));
                 ui.menu_button("View", |ui| self.view_menu(ui));
+                self.status_label(ui);
             });
+        });
+    }
+
+    /// The market status, at the right end of the menu bar.
+    fn status_label(&self, ui: &mut egui::Ui) {
+        let Some(status) = &self.status else {
+            return;
+        };
+        let tint = color(status_colour(status, &self.theme()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(egui::RichText::new(status.to_string()).small().color(tint));
         });
     }
 
@@ -370,7 +418,7 @@ impl FusionApp {
             can_move: self.bus.can_open_windows(),
             views: &mut self.views,
             theme: &theme,
-            market: &self.market,
+            market: &*self.market,
             now,
             events: &mut self.events,
             outbox: &mut outbox,

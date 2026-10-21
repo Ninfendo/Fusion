@@ -6,6 +6,9 @@
 //! Started by `fusion-launcher` with `--window N --hub NAME --settings
 //! FILE`, it is one window of the workspace. The launcher keeps the layout;
 //! the window keeps only its theme and its place on the screen, in FILE.
+//!
+//! With `--server ws://HOST:PORT` the panels show live data from the view
+//! server (`fusion-server`); without it, made-up demo data.
 
 // No console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -13,6 +16,7 @@
 use std::path::PathBuf;
 
 use eframe::{egui, egui_wgpu, wgpu};
+use fusion_client_link::LiveFeed;
 use fusion_layout::WindowId;
 use fusion_pipe::PipeBus;
 use fusion_ui_egui::{FusionApp, THEME_KEY};
@@ -30,10 +34,19 @@ enum Start {
     },
 }
 
-fn parse(mut args: impl Iterator<Item = String>) -> Result<Start, String> {
-    let (mut window, mut hub, mut settings) = (None, None, None);
+/// The command line.
+#[derive(Debug, PartialEq)]
+struct Args {
+    start: Start,
+    /// The view server's address; demo data without one.
+    server: Option<String>,
+}
+
+fn parse(mut args: impl Iterator<Item = String>) -> Result<Args, String> {
+    let (mut window, mut hub, mut settings, mut server) = (None, None, None, None);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--server" => server = Some(args.next().ok_or("--server needs an address")?),
             "--window" => {
                 let number = args.next().and_then(|n| n.parse().ok());
                 window = Some(WindowId(number.ok_or("--window needs a number")?));
@@ -45,15 +58,27 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Start, String> {
             other => return Err(format!("unknown argument: {other}")),
         }
     }
-    match (window, hub, settings) {
-        (None, None, None) => Ok(Start::Alone),
-        (Some(window), Some(hub), settings) => Ok(Start::InHub {
+    let start = match (window, hub, settings) {
+        (None, None, None) => Start::Alone,
+        (Some(window), Some(hub), settings) => Start::InHub {
             window,
             hub,
             settings,
-        }),
-        _ => Err("--window and --hub go together, and --settings needs them".to_owned()),
+        },
+        _ => return Err("--window and --hub go together, and --settings needs them".to_owned()),
+    };
+    Ok(Args { start, server })
+}
+
+/// Switches `app` to live data from `server`, if one is given.
+fn go_live(app: &mut FusionApp, server: Option<&str>, ctx: &egui::Context) -> std::io::Result<()> {
+    if let Some(url) = server {
+        let ctx = ctx.clone();
+        app.set_market(Box::new(LiveFeed::connect(url, move || {
+            ctx.request_repaint()
+        })?));
     }
+    Ok(())
 }
 
 /// The graphics backends to use: OpenGL on Windows and Linux, Metal on
@@ -88,7 +113,7 @@ fn options() -> eframe::NativeOptions {
 }
 
 fn main() -> eframe::Result {
-    let start = parse(std::env::args().skip(1)).unwrap_or_else(|err| {
+    let Args { start, server } = parse(std::env::args().skip(1)).unwrap_or_else(|err| {
         eprintln!("{err}");
         std::process::exit(2)
     });
@@ -96,7 +121,11 @@ fn main() -> eframe::Result {
         Start::Alone => eframe::run_native(
             "Fusion",
             options(),
-            Box::new(|cc| Ok(Box::new(FusionApp::new(cc)))),
+            Box::new(move |cc| {
+                let mut app = FusionApp::new(cc);
+                go_live(&mut app, server.as_deref(), &cc.egui_ctx)?;
+                Ok(Box::new(app))
+            }),
         ),
         // Each window keeps its own place on the screen, in its own file.
         Start::InHub {
@@ -113,11 +142,9 @@ fn main() -> eframe::Result {
                 let ctx = cc.egui_ctx.clone();
                 let bus = PipeBus::connect(&hub, window, move || ctx.request_repaint())?;
                 let theme = cc.storage.and_then(|s| s.get_string(THEME_KEY));
-                Ok(Box::new(FusionApp::with_bus(
-                    Box::new(bus),
-                    window,
-                    theme.as_deref(),
-                )))
+                let mut app = FusionApp::with_bus(Box::new(bus), window, theme.as_deref());
+                go_live(&mut app, server.as_deref(), &cc.egui_ctx)?;
+                Ok(Box::new(app))
             }),
         ),
     }
@@ -128,7 +155,7 @@ mod tests {
     use super::*;
 
     fn parse_text(text: &str) -> Result<Start, String> {
-        parse(text.split_whitespace().map(str::to_owned))
+        parse(text.split_whitespace().map(str::to_owned)).map(|args| args.start)
     }
 
     #[test]
@@ -165,5 +192,21 @@ mod tests {
         assert!(parse_text("--window 2").is_err());
         assert!(parse_text("--hub").is_err());
         assert!(parse_text("--fast").is_err());
+    }
+
+    #[test]
+    fn the_server_goes_with_either_start() {
+        let server =
+            |text: &str| parse(text.split_whitespace().map(str::to_owned)).map(|a| a.server);
+        assert_eq!(server(""), Ok(None));
+        assert_eq!(
+            server("--server ws://h:7070"),
+            Ok(Some("ws://h:7070".to_owned()))
+        );
+        assert_eq!(
+            server("--window 2 --hub h --server ws://h:7070"),
+            Ok(Some("ws://h:7070".to_owned()))
+        );
+        assert!(server("--server").is_err());
     }
 }

@@ -46,6 +46,19 @@ cargo run -p fusion-server                                     # the view server
 cargo run -p fusion-server --example watch -- ws://127.0.0.1:7070 prices 10   # watch a table on a running server
 ```
 
+The apps show made-up demo data unless they are given a view server. Start
+`fusion-server` first, then:
+
+```sh
+target/debug/fusion-launcher --server ws://127.0.0.1:7070       # every window on live data
+cargo run -p fusion-window -- --server ws://127.0.0.1:7070       # one window on live data
+# in the browser: http://127.0.0.1:8080/?server=ws://127.0.0.1:7070
+```
+
+The right end of the menu bar says where the data comes from: `Demo data`,
+`Live`, or why it is not connected. A lost connection is tried again by
+itself.
+
 CI runs the same checks on Linux, Windows and macOS. It also blocks a merge
 on: cognitive complexity limits in clippy, cyclomatic complexity above 15
 ([lizard](https://github.com/terryyin/lizard)), line coverage below 95%

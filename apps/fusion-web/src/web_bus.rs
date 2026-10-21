@@ -270,13 +270,15 @@ impl WebBus {
         {
             match popup {
                 Popup::Show(popup, target) => {
-                    let path = web_sys::window()
-                        .and_then(|page| page.location().pathname().ok())
+                    let location = web_sys::window().map(|page| page.location());
+                    let path = location
+                        .as_ref()
+                        .and_then(|l| l.pathname().ok())
                         .unwrap_or_default();
+                    let query = location.and_then(|l| l.search().ok()).unwrap_or_default();
+                    let query = fusion_hub::query_for_window(&query, target);
                     // A window that went away cannot be filled; it is gone.
-                    let _shown = popup
-                        .location()
-                        .set_href(&format!("{path}?window={target}"));
+                    let _shown = popup.location().set_href(&format!("{path}{query}"));
                 }
                 Popup::Close(popup) => {
                     let _closed = popup.close();

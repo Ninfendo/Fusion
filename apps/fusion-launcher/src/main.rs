@@ -4,6 +4,9 @@
 //! The layout is saved in Fusion's settings folder (see
 //! [`fusion_launch::config_dir`]) and restored at the next start, popped-out
 //! windows included. `fusion-window` must sit next to this program.
+//!
+//! With `--server ws://HOST:PORT` every window shows live data from the view
+//! server; without it, demo data.
 
 // No console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -33,6 +36,7 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
+    let view_server = server_arg(std::env::args().skip(1))?;
     let folder = config_dir(std::env::consts::OS, |name| std::env::var_os(name))
         .ok_or("there is no home folder to keep the layout in")?;
     let file = LayoutFile::new(folder.join("layout.json"));
@@ -60,6 +64,9 @@ fn run() -> Result<(), Box<dyn Error>> {
                 "--settings",
             ])
             .arg(windows.join(format!("{window}.ron")));
+        if let Some(url) = &view_server {
+            command.args(["--server", url]);
+        }
         command
     });
     let mut launcher = Launcher::new(layout, server, processes, file);
@@ -78,8 +85,40 @@ fn print_log<P: fusion_launch::WindowProcesses>(launcher: &mut Launcher<P>) {
     }
 }
 
+/// The view server's address, from `--server ws://HOST:PORT`, if given.
+fn server_arg(mut args: impl Iterator<Item = String>) -> Result<Option<String>, String> {
+    let mut server = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--server" => server = Some(args.next().ok_or("--server needs an address")?),
+            other => return Err(format!("unknown argument: {other}")),
+        }
+    }
+    Ok(server)
+}
+
 /// `fusion-window`, next to this program.
 fn window_program() -> std::io::Result<PathBuf> {
     let me = std::env::current_exe()?;
     Ok(me.with_file_name(format!("fusion-window{}", std::env::consts::EXE_SUFFIX)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn server(text: &str) -> Result<Option<String>, String> {
+        server_arg(text.split_whitespace().map(str::to_owned))
+    }
+
+    #[test]
+    fn the_server_is_optional() {
+        assert_eq!(server(""), Ok(None));
+        assert_eq!(
+            server("--server ws://h:7070"),
+            Ok(Some("ws://h:7070".to_owned()))
+        );
+        assert!(server("--server").is_err());
+        assert!(server("--fast").is_err());
+    }
 }

@@ -26,24 +26,24 @@ impl LadderView {
 impl PanelView for LadderView {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut PanelContext<'_>) {
         let symbols = cx.market.symbols();
-        let current = self
+        let mut chosen = self
             .model
             .symbol()
-            .or(symbols.first().copied())
-            .unwrap_or_default()
-            .to_owned();
-        let mut chosen = current.clone();
+            .map(str::to_owned)
+            .or_else(|| symbols.first().cloned())
+            .unwrap_or_default();
         egui::ComboBox::new(ui.scope_id().with("ladder-symbol"), "Symbol")
             .selected_text(chosen.as_str())
             .show_ui(ui, |ui| {
                 for symbol in &symbols {
-                    ui.selectable_value(&mut chosen, (*symbol).to_owned(), *symbol);
+                    ui.selectable_value(&mut chosen, symbol.clone(), symbol.as_str());
                 }
             });
-        if self.model.symbol() != Some(chosen.as_str()) {
+        // A live market has no symbols before the server's first snapshot.
+        if !chosen.is_empty() && self.model.symbol() != Some(chosen.as_str()) {
             cx.events.push(format!("L2: showing {chosen}"));
+            self.model.show(chosen.as_str());
         }
-        self.model.show(chosen.as_str());
         if let Some(book) = cx.market.book(&chosen, DEPTH) {
             self.model.apply_book(book);
         }
@@ -77,6 +77,10 @@ impl PanelView for LadderView {
                 }
             }
         }
+    }
+
+    fn book(&self) -> Option<&str> {
+        self.model.symbol()
     }
 }
 
@@ -120,6 +124,7 @@ impl LadderView {
 mod tests {
     use egui_kittest::{Harness, kittest::Queryable as _};
     use fusion_client_core::demo::DemoMarket;
+    use fusion_client_core::{Book, MarketData, Quote};
     use fusion_theme::Theme;
 
     use super::*;
@@ -127,8 +132,16 @@ mod tests {
 
     /// Draws `view` with a fresh market and returns the events it logged.
     fn draw(view: &mut LadderView, steps: usize, click: Option<&[&str]>) -> Events {
+        draw_with(view, &DemoMarket::new(1), steps, click)
+    }
+
+    fn draw_with(
+        view: &mut LadderView,
+        market: &dyn MarketData,
+        steps: usize,
+        click: Option<&[&str]>,
+    ) -> Events {
         let theme = Theme::dark();
-        let market = DemoMarket::new(1);
         let mut events = Events::default();
         {
             let mut harness = Harness::new_ui(|ui| {
@@ -136,7 +149,7 @@ mod tests {
                     panel: fusion_layout::PanelId(1),
                     outbox: &mut Vec::new(),
                     theme: &theme,
-                    market: &market,
+                    market,
                     now: 0.0,
                     events: &mut events,
                 };
@@ -149,6 +162,40 @@ mod tests {
             }
         }
         events
+    }
+
+    /// A live market before the server's first snapshot: nothing at all.
+    struct NoMarket;
+
+    impl MarketData for NoMarket {
+        fn quotes(&self) -> Vec<Quote> {
+            Vec::new()
+        }
+
+        fn symbols(&self) -> Vec<String> {
+            Vec::new()
+        }
+
+        fn book(&self, _symbol: &str, _depth: usize) -> Option<Book> {
+            None
+        }
+    }
+
+    #[test]
+    fn an_empty_market_leaves_the_ladder_waiting() {
+        let mut view = LadderView::default();
+        let events = draw_with(&mut view, &NoMarket, 2, None);
+        assert_eq!(view.symbol(), None);
+        assert_eq!(view.book(), None, "no book to ask for");
+        assert!(events.is_empty());
+        assert!(NoMarket.quotes().is_empty());
+    }
+
+    #[test]
+    fn the_ladder_asks_for_the_book_it_shows() {
+        let mut view = LadderView::default();
+        draw(&mut view, 2, None);
+        assert_eq!(view.book(), Some("BTCUSDT"));
     }
 
     #[test]

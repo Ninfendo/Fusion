@@ -189,5 +189,19 @@ pub fn window_from_query(query: &str) -> WindowId {
         .map_or(WindowId::MAIN, WindowId)
 }
 
+/// The page address of another window of the same page: the same query,
+/// with `window` set. `?server=x` and window 2 give `?server=x&window=2`,
+/// so a popped-out tab keeps what the page was started with.
+pub fn query_for_window(query: &str, window: WindowId) -> String {
+    let window = format!("window={window}");
+    let pairs: Vec<&str> = query
+        .trim_start_matches('?')
+        .split('&')
+        .filter(|pair| !pair.is_empty() && !pair.starts_with("window="))
+        .chain([window.as_str()])
+        .collect();
+    format!("?{}", pairs.join("&"))
+}
+
 #[cfg(test)]
 mod tests;

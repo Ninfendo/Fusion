@@ -105,6 +105,12 @@ The client is built from these blocks from the start, not later.
   After a lost connection it tries again after 1 s, then 2, 4, up to 30 s.
   On each new connection the client opens its viewports again and gets
   fresh snapshots. Messages sent while it is away are dropped.
+- **Market feed:** the app holds one `MarketFeed` (client-core): the demo
+  feed, or the live feed (client-link) when the window is started with
+  `--server` (`?server=` in the browser). Each frame the app updates it and
+  names the order books its panels show, hidden tabs included; the live feed
+  opens a `book/<SYMBOL>` viewport for each and closes the rest. Each window
+  process has its own connection.
 - **Desktop and browser:** the same UI crate builds natively and for wasm32.
   The browser build runs in CI from milestone 1.
 - **One process per window.** A launcher starts one process per window and

@@ -9,7 +9,11 @@
 //! On desktop it is a thread with its own WebSocket; in the browser it is
 //! the browser's WebSocket. Both call `wake` after each event, so a window
 //! draws at once instead of on its next timer.
+//!
+//! [`LiveFeed`] puts a link and a [`fusion_client_core::LiveMarket`]
+//! together: the market data the app shows when a server is given.
 
+mod feed;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 #[cfg(target_arch = "wasm32")]
@@ -19,6 +23,7 @@ use std::time::Duration;
 
 use fusion_protocol::v1::ServerMessage;
 
+pub use feed::LiveFeed;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::NativeLink as Link;
 #[cfg(target_arch = "wasm32")]
@@ -48,9 +53,67 @@ pub fn retry_after(failures: u32) -> Duration {
         .min(MAX_RETRY)
 }
 
+/// The view server's address in a page's query, if any: `?server=ws://host:7070`,
+/// or percent-encoded, `?window=2&server=ws%3A%2F%2Fhost%3A7070`.
+pub fn server_from_query(query: &str) -> Option<String> {
+    let value = query
+        .trim_start_matches('?')
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("server="))?;
+    let url = percent_decode(value);
+    (!url.is_empty()).then_some(url)
+}
+
+/// Turns each `%XX` into its byte. A `%` without two hex digits stays.
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while let Some(&byte) = bytes.get(at) {
+        let hex = bytes
+            .get(at + 1..at + 3)
+            .filter(|h| h.iter().all(u8::is_ascii_hexdigit))
+            .and_then(|h| u8::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok());
+        match (byte, hex) {
+            (b'%', Some(decoded)) => {
+                out.push(decoded);
+                at += 3;
+            }
+            _ => {
+                out.push(byte);
+                at += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_server_comes_from_the_query() {
+        assert_eq!(
+            server_from_query("?server=ws://127.0.0.1:7070"),
+            Some("ws://127.0.0.1:7070".to_owned())
+        );
+        assert_eq!(
+            server_from_query("?window=2&server=ws%3A%2F%2Fhost%3a7070"),
+            Some("ws://host:7070".to_owned())
+        );
+        assert_eq!(server_from_query("?window=2"), None);
+        assert_eq!(server_from_query(""), None);
+        assert_eq!(server_from_query("?server="), None);
+    }
+
+    #[test]
+    fn a_lone_percent_stays() {
+        assert_eq!(percent_decode("a%"), "a%");
+        assert_eq!(percent_decode("a%4"), "a%4");
+        assert_eq!(percent_decode("%zz%41"), "%zzA");
+        assert_eq!(percent_decode("%+1"), "%+1");
+    }
 
     #[test]
     fn waits_double_up_to_the_limit() {
