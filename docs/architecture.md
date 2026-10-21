@@ -358,13 +358,17 @@ This is Fusion's equivalent of an IoC container. There is no container crate.
 
   | Instruments | Changes a second | Frame median | Frame 99% | Worst | Server CPU |
   | --- | --- | --- | --- | --- | --- |
-  | 12 | 10,000 | 0.9 ms | 3.6 ms | 4.8 ms | 9% of a core |
-  | 500 | 10,000 | 5.2 ms | 8.5 ms | 11.8 ms | 9% of a core |
-  | 500 | 50,000 | 5.3 ms | 11.7 ms | 17.5 ms | 29% of a core |
+  | 12 | 10,000 | 1.1 ms | 3.9 ms | 5.3 ms | 10% of a core |
+  | 500 | 10,000 | 1.8 ms | 5.5 ms | 7.7 ms | 13% of a core |
+  | 500 | 50,000 | 1.5 ms | 2.9 ms | 5.4 ms | 33% of a core |
 
-  A frame has 16.7 ms at 60 frames a second. The cost grows with the
-  instruments, not with the rate: the watchlist lays out all 500 rows every
-  frame, also the ones off screen.
+  A frame has 16.7 ms at 60 frames a second, so the gate passes with room
+  to spare, and the cost hardly grows with the instruments. It did before:
+  with 500 instruments the median was 5.2 ms and the worst 17.5 ms, because
+  the watchlist laid out every row, also those off screen, and searched all
+  rows for each row's old state. Now it is a table that lays out only the
+  rows on screen (`egui_extras`), takes the quotes without copying them,
+  and finds a row's old state at the same place first.
 
 ## Determinism rules
 

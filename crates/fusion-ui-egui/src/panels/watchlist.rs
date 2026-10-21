@@ -1,6 +1,7 @@
 //! The watchlist view.
 
 use egui::{Color32, RichText};
+use egui_extras::{Column, TableBuilder, TableRow};
 use fusion_client_core::links::Context;
 use fusion_client_core::watchlist::{Action, Effect, Move, Row, WatchlistModel};
 use fusion_egui_theme::color;
@@ -50,11 +51,9 @@ pub struct WatchlistView {
 
 impl PanelView for WatchlistView {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut PanelContext<'_>) {
-        self.model.apply_quotes(&cx.market.quotes(), cx.now);
+        self.model.apply_quotes(cx.market.quotes(), cx.now);
         let (theme, now) = (cx.theme, cx.now);
-        let clicked = egui::ScrollArea::vertical()
-            .show(ui, |ui| rows_grid(ui, &self.model, theme, now))
-            .inner;
+        let clicked = rows_table(ui, &self.model, theme, now);
         let gesture = ui.input(|i| gesture_of(i.modifiers));
         let effects = clicked.map(|s| self.model.update(Action::Select(s)));
         for effect in effects.into_iter().flatten() {
@@ -72,20 +71,44 @@ impl PanelView for WatchlistView {
     }
 }
 
-/// The grid of rows. Returns the symbol clicked, if any.
-fn rows_grid(ui: &mut egui::Ui, model: &WatchlistModel, theme: &Theme, now: f64) -> Option<String> {
+/// The height of a row, in points.
+pub const ROW_HEIGHT: f32 = 20.0;
+
+/// The column titles.
+const TITLES: [&str; 5] = ["Symbol", "Bid", "Ask", "Last", "Chg %"];
+
+/// The table of rows, with its header fixed on top. Only the rows on
+/// screen are laid out, so 500 instruments cost about what 40 do. Returns
+/// the symbol clicked, if any.
+fn rows_table(
+    ui: &mut egui::Ui,
+    model: &WatchlistModel,
+    theme: &Theme,
+    now: f64,
+) -> Option<String> {
     let mut clicked = None;
-    egui::Grid::new(ui.scope_id().with("watchlist-grid"))
+    let rows = model.rows();
+    TableBuilder::new(ui)
+        .id_salt("watchlist-table")
         .striped(true)
-        .num_columns(5)
-        .spacing([16.0, 4.0])
-        .show(ui, |ui| {
-            header_row(ui, theme);
-            for row in model.rows() {
-                if draw_row(ui, row, is_selected(model, row), theme, now) {
+        .columns(Column::auto().at_least(80.0), 4)
+        .column(Column::remainder().at_least(50.0))
+        .header(ROW_HEIGHT, |mut header| {
+            for title in TITLES {
+                header.col(|ui| {
+                    ui.label(RichText::new(title).strong().color(color(theme.text_muted)));
+                });
+            }
+        })
+        .body(|body| {
+            body.rows(ROW_HEIGHT, rows.len(), |mut cells| {
+                let Some(row) = rows.get(cells.index()) else {
+                    return;
+                };
+                if draw_row(&mut cells, row, is_selected(model, row), theme, now) {
                     clicked = Some(row.quote.symbol.clone());
                 }
-            }
+            });
         });
     clicked
 }
@@ -106,17 +129,6 @@ fn row_flash(row: &Row, theme: &Theme, now: f64) -> Color32 {
     flash.gamma_multiply(flash_strength(now - row.moved_at))
 }
 
-fn header_row(ui: &mut egui::Ui, theme: &Theme) {
-    for header in ["Symbol", "Bid", "Ask", "Last", "Chg %"] {
-        ui.label(
-            RichText::new(header)
-                .strong()
-                .color(color(theme.text_muted)),
-        );
-    }
-    ui.end_row();
-}
-
 /// The colour a change is shown in: buy colour up, sell colour down.
 fn change_colour(change: fusion_client_core::Decimal, theme: &Theme) -> Rgba {
     if change.is_zero() {
@@ -129,21 +141,37 @@ fn change_colour(change: fusion_client_core::Decimal, theme: &Theme) -> Rgba {
 }
 
 /// Draws one row and returns true if its symbol was clicked.
-fn draw_row(ui: &mut egui::Ui, row: &Row, selected: bool, theme: &Theme, now: f64) -> bool {
-    let clicked = ui
-        .selectable_label(selected, row.quote.symbol.as_str())
-        .clicked();
+fn draw_row(
+    cells: &mut TableRow<'_, '_>,
+    row: &Row,
+    selected: bool,
+    theme: &Theme,
+    now: f64,
+) -> bool {
+    let mut clicked = false;
+    cells.col(|ui| {
+        clicked = ui
+            .selectable_label(selected, row.quote.symbol.as_str())
+            .clicked();
+    });
     let price = |text: String, c: Rgba| RichText::new(text).monospace().color(color(c));
-    ui.label(price(row.quote.bid.to_string(), theme.buy));
-    ui.label(price(row.quote.ask.to_string(), theme.sell));
-    egui::Frame::new()
-        .fill(row_flash(row, theme, now))
-        .show(ui, |ui| {
-            ui.label(price(row.quote.last.to_string(), theme.text))
-        });
+    cells.col(|ui| {
+        ui.label(price(row.quote.bid.to_string(), theme.buy));
+    });
+    cells.col(|ui| {
+        ui.label(price(row.quote.ask.to_string(), theme.sell));
+    });
+    cells.col(|ui| {
+        egui::Frame::new()
+            .fill(row_flash(row, theme, now))
+            .show(ui, |ui| {
+                ui.label(price(row.quote.last.to_string(), theme.text))
+            });
+    });
     let change = row.change_pct;
-    ui.label(price(format_change(change), change_colour(change, theme)));
-    ui.end_row();
+    cells.col(|ui| {
+        ui.label(price(format_change(change), change_colour(change, theme)));
+    });
     clicked
 }
 

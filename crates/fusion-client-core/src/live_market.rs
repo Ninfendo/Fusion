@@ -170,13 +170,33 @@ impl LiveMarket {
             .find(|(id, _)| *id == viewport)
             .map(|(_, cache)| cache)
     }
+}
+
+/// Where a quote's prices are in a `prices` row. Looked up once a frame,
+/// not once a row.
+struct QuoteColumns {
+    bid: Option<usize>,
+    ask: Option<usize>,
+    last: Option<usize>,
+    open: Option<usize>,
+}
+
+impl QuoteColumns {
+    fn of(prices: &ViewportCache) -> Self {
+        Self {
+            bid: prices.column("bid"),
+            ask: prices.column("ask"),
+            last: prices.column("last"),
+            open: prices.column("open"),
+        }
+    }
 
     fn quote(&self, symbol: &str, cells: &[Cell]) -> Option<Quote> {
-        let get = |name: &str| decimal(self.prices.column(name).and_then(|i| cells.get(i)));
-        let bid = get("bid")?;
-        let ask = get("ask")?;
-        let last = get("last").unwrap_or(bid);
-        let open = get("open").unwrap_or(last);
+        let get = |at: Option<usize>| decimal(at.and_then(|i| cells.get(i)));
+        let bid = get(self.bid)?;
+        let ask = get(self.ask)?;
+        let last = get(self.last).unwrap_or(bid);
+        let open = get(self.open).unwrap_or(last);
         Some(Quote {
             symbol: symbol.to_owned(),
             bid: Price::new(bid),
@@ -191,9 +211,10 @@ impl MarketData for LiveMarket {
     /// Instruments with a bid and an ask. One with no trade yet shows the
     /// bid as its last price.
     fn quotes(&self) -> Vec<Quote> {
+        let columns = QuoteColumns::of(&self.prices);
         self.prices
             .rows()
-            .filter_map(|(symbol, cells)| self.quote(symbol, cells))
+            .filter_map(|(symbol, cells)| columns.quote(symbol, cells))
             .collect()
     }
 
