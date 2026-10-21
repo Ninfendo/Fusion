@@ -5,12 +5,19 @@
 //! second copy of the main tab follows it. The rules live in
 //! [`fusion_hub::TabHub`] and [`fusion_hub::PendingPopups`]; this file only
 //! makes the browser calls.
+//!
+//! With `?server=`, the hub tab also keeps the layout on the view server.
+//! It starts with the local copy, then takes the server's when it comes,
+//! unless the user changed the layout meanwhile (see
+//! [`fusion_client_core::workspace::choose_layout`]).
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use eframe::wasm_bindgen::closure::Closure;
 use eframe::wasm_bindgen::{JsCast as _, JsValue};
+use fusion_client_core::workspace::{LayoutChoice, SERVER_LAYOUT, choose_layout};
+use fusion_client_link::{RemoteEvent, RemoteLayouts};
 use fusion_hub::{
     Bus, Envelope, FromHub, PendingPopups, Popup, TabHub, TabReply, ToHub, decode, encode,
 };
@@ -43,7 +50,13 @@ struct Shared {
     /// frame, because a tab in the background stops drawing.
     saver: Option<Function>,
     save_pending: bool,
-    wake: Box<dyn Fn()>,
+    wake: Rc<dyn Fn()>,
+    /// The view server's address, from the page's `?server=`.
+    server: Option<String>,
+    /// The hub tab's copy of the layout on the view server.
+    remote: Option<RemoteLayouts>,
+    /// The layout changed since the hub started in this tab.
+    changed_here: bool,
 }
 
 impl Shared {
@@ -69,6 +82,7 @@ impl Shared {
     }
 
     fn take(&mut self, reply: TabReply) {
+        self.changed_here |= reply.changed;
         if reply.changed && !self.save_pending {
             let timer = web_sys::window()
                 .zip(self.saver.as_ref())
@@ -114,6 +128,11 @@ impl Shared {
         if run_hub {
             self.role = Role::Hub(TabHub::new(load_layout()));
             self.post(&Envelope::HubStarted);
+            self.remote = self.server.as_deref().and_then(|url| {
+                let wake = Rc::clone(&self.wake);
+                // A link that cannot start leaves the layout in this browser.
+                RemoteLayouts::connect(url, SERVER_LAYOUT, move || wake()).ok()
+            });
         }
         for message in waiting {
             self.send(message);
@@ -122,20 +141,50 @@ impl Shared {
 
     fn save(&mut self) {
         self.save_pending = false;
-        if let Role::Hub(hub) = &self.role
-            && let (Some(storage), Ok(json)) = (local_storage(), hub.layout().to_json())
-        {
+        let Role::Hub(hub) = &self.role else {
+            return;
+        };
+        let Ok(json) = hub.layout().to_json() else {
+            return;
+        };
+        if let Some(storage) = local_storage() {
             // A full storage keeps the last saved layout.
             let _saved = storage.set_item(LAYOUT_KEY, &json);
         }
+        if let Some(remote) = &mut self.remote {
+            remote.save(json);
+        }
     }
 
-    /// The tab is going away. The hub tab saves and ends every tab; a
-    /// popped-out window's panels go back to the main window.
+    /// Takes in what the view server said about the layout.
+    fn pump_remote(&mut self) {
+        let Some(remote) = &mut self.remote else {
+            return;
+        };
+        for event in remote.poll() {
+            match event {
+                RemoteEvent::Loaded(answer) => match choose_layout(answer, self.changed_here) {
+                    LayoutChoice::UseServer(layout) => self.send(ToHub::ReplaceLayout { layout }),
+                    LayoutChoice::SendLocal => self.save(),
+                    LayoutChoice::KeepLocal(text) => self.inbox.push(FromHub::Notice { text }),
+                },
+                RemoteEvent::SaveFailed(why) => self.inbox.push(FromHub::Notice {
+                    text: format!("The view server did not keep the layout: {why}"),
+                }),
+            }
+        }
+    }
+
+    /// The tab is going away. The hub tab saves a change still waiting for
+    /// its timer, and ends every tab; a popped-out window's panels go back
+    /// to the main window. An unchanged layout is not saved: it would
+    /// overwrite a newer copy on the view server.
     fn leaving(&mut self) {
         match self.role {
             Role::Hub(_) => {
-                self.save();
+                if self.save_pending {
+                    self.save();
+                }
                 self.send(ToHub::CloseWindow {
                     window: WindowId::MAIN,
                 });
@@ -170,8 +219,13 @@ pub struct WebBus {
 }
 
 impl WebBus {
-    /// The bus for the tab that shows `window`. `wake` asks the tab to draw.
-    pub fn new(window: WindowId, wake: impl Fn() + 'static) -> Result<Self, JsValue> {
+    /// The bus for the tab that shows `window`. `server` is the view
+    /// server's address, if the page has one. `wake` asks the tab to draw.
+    pub fn new(
+        window: WindowId,
+        server: Option<String>,
+        wake: impl Fn() + 'static,
+    ) -> Result<Self, JsValue> {
         let channel = BroadcastChannel::new(CHANNEL)?;
         let role = if window == WindowId::MAIN {
             Role::Deciding(Vec::new())
@@ -185,7 +239,10 @@ impl WebBus {
             channel: channel.clone(),
             saver: None,
             save_pending: false,
-            wake: Box::new(wake),
+            wake: Rc::new(wake),
+            server,
+            remote: None,
+            changed_here: false,
         }));
 
         let on_save = {
@@ -342,6 +399,7 @@ impl Bus for WebBus {
     }
 
     fn poll(&mut self) -> Vec<FromHub> {
+        self.shared.borrow_mut().pump_remote();
         let messages = std::mem::take(&mut self.shared.borrow_mut().inbox);
         let layout = messages.iter().rev().find_map(|m| match m {
             FromHub::Layout { layout } => Some(layout),

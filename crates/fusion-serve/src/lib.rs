@@ -177,14 +177,14 @@ async fn answer_layout<S: LayoutStore>(
             Ok(()) => fusion_viewserver::ack(request),
             Err(why) => error(request, 0, why),
         },
-        LayoutRequest::Load { request, name } => match store.load(name.clone()).await {
-            Ok(Some(json)) => ServerMessage {
+        // No layout by that name is an answer, not an error.
+        LayoutRequest::Load { request, name } => match store.load(name).await {
+            Ok(found) => ServerMessage {
                 body: Some(server_message::Body::Ack(v1::Ack {
                     request,
-                    result: Some(ack::Result::LayoutJson(json)),
+                    result: found.map(ack::Result::LayoutJson),
                 })),
             },
-            Ok(None) => error(request, 0, format!("there is no layout {name}")),
             Err(why) => error(request, 0, why),
         },
     };

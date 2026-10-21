@@ -12,8 +12,10 @@
 //!
 //! [`LiveFeed`] puts a link and a [`fusion_client_core::LiveMarket`]
 //! together: the market data the app shows when a server is given.
+//! [`RemoteLayouts`] keeps one layout on the server.
 
 mod feed;
+mod layouts;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 #[cfg(target_arch = "wasm32")]
@@ -24,6 +26,7 @@ use std::time::Duration;
 use fusion_protocol::v1::ServerMessage;
 
 pub use feed::LiveFeed;
+pub use layouts::{RemoteEvent, RemoteLayouts};
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::NativeLink as Link;
 #[cfg(target_arch = "wasm32")]

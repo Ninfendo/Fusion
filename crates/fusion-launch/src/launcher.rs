@@ -13,8 +13,23 @@ use crate::processes::WindowProcesses;
 /// second at most, not on every frame.
 pub const SAVE_DELAY: Duration = Duration::from_secs(1);
 
-/// The launcher: the hub, the pipes, the window processes and the layout
-/// file.
+/// How long the launcher waits at its end for the mirror to keep the last
+/// layout.
+pub const MIRROR_WAIT: Duration = Duration::from_secs(2);
+
+/// Another place the layout is kept, beside the file: the view server.
+pub trait LayoutMirror {
+    /// Keeps a copy of the layout, as JSON.
+    fn save(&mut self, json: String);
+    /// Takes in what came back. Returns lines for the log.
+    fn poll(&mut self) -> Vec<String>;
+    /// Waits up to `wait` until the last copy is kept. Returns lines for
+    /// the log.
+    fn settle(&mut self, wait: Duration) -> Vec<String>;
+}
+
+/// The launcher: the hub, the pipes, the window processes, the layout
+/// file, and a mirror of the layout if one is given.
 pub struct Launcher<P> {
     hub: Hub,
     board: Switchboard,
@@ -22,6 +37,7 @@ pub struct Launcher<P> {
     server: HubServer,
     processes: P,
     file: LayoutFile,
+    mirror: Option<Box<dyn LayoutMirror>>,
     started: Instant,
     /// When the layout first changed since it was last saved.
     changed_at: Option<Instant>,
@@ -39,11 +55,19 @@ impl<P: WindowProcesses> Launcher<P> {
             server,
             processes,
             file,
+            mirror: None,
             started: Instant::now(),
             changed_at: None,
             log: Vec::new(),
             quit: false,
         }
+    }
+
+    /// Also keeps each saved layout in `mirror`.
+    #[must_use]
+    pub fn with_mirror(mut self, mirror: Box<dyn LayoutMirror>) -> Self {
+        self.mirror = Some(mirror);
+        self
     }
 
     /// The hub.
@@ -75,6 +99,9 @@ impl<P: WindowProcesses> Launcher<P> {
             self.on_ended(window, how);
         }
         self.save_if_due(false);
+        if let Some(mirror) = &mut self.mirror {
+            self.log.extend(mirror.poll());
+        }
         !self.quit
     }
 
@@ -84,6 +111,9 @@ impl<P: WindowProcesses> Launcher<P> {
         let everyone = self.board.recipients(Address::All);
         self.server.send(&everyone, &FromHub::Quit);
         self.save_if_due(true);
+        if let Some(mirror) = &mut self.mirror {
+            self.log.extend(mirror.settle(MIRROR_WAIT));
+        }
         for window in self.processes.stop_all(grace) {
             self.log.push(format!(
                 "Window {window} did not close in time and was stopped"
@@ -183,6 +213,11 @@ impl<P: WindowProcesses> Launcher<P> {
         if let Err(err) = self.file.save(self.hub.layout()) {
             self.log
                 .push(format!("The layout could not be saved: {err}"));
+        }
+        // A layout that does not turn into JSON failed the file save above
+        // too, and is logged there.
+        if let (Some(mirror), Ok(json)) = (&mut self.mirror, self.hub.layout().to_json()) {
+            mirror.save(json);
         }
     }
 }

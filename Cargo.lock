@@ -1727,7 +1727,9 @@ name = "fusion-launcher"
 version = "0.0.1"
 dependencies = [
  "fusion-client-core",
+ "fusion-client-link",
  "fusion-launch",
+ "fusion-layout",
  "fusion-pipe",
 ]
 

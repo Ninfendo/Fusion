@@ -161,7 +161,8 @@ message Delta {
 message Ack {
   uint64 request = 1;
   oneof result {
-    // The layout asked for by LoadLayout.
+    // The layout asked for by LoadLayout. A LoadLayout answered without it
+    // found no layout by that name.
     string layout_json = 2;
   }
 }

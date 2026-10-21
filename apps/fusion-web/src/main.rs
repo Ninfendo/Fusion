@@ -35,8 +35,9 @@ fn main() {
                 eframe::WebOptions::default(),
                 Box::new(move |cc| {
                     let ctx = cc.egui_ctx.clone();
-                    let bus = web_bus::WebBus::new(window, move || ctx.request_repaint())
-                        .map_err(|err| format!("the tab channel did not open: {err:?}"))?;
+                    let bus =
+                        web_bus::WebBus::new(window, server.clone(), move || ctx.request_repaint())
+                            .map_err(|err| format!("the tab channel did not open: {err:?}"))?;
                     let theme = cc
                         .storage
                         .and_then(|s| s.get_string(fusion_ui_egui::THEME_KEY));

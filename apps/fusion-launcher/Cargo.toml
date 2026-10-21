@@ -11,6 +11,8 @@ publish.workspace = true
 
 [dependencies]
 fusion-client-core.workspace = true
+fusion-client-link.workspace = true
+fusion-layout.workspace = true
 fusion-launch.workspace = true
 fusion-pipe.workspace = true
 

@@ -170,6 +170,16 @@ The client is built from these blocks from the start, not later.
 - **Theme as tokens:** background, panel, text, accent, buy, sell, up tick,
   down tick, warning, grid line, selected row. A colour-blind option for buy
   and sell, and a monospace font for prices.
+- **Layouts follow the user:** with a view server, the launcher and the
+  browser's hub tab keep the layout there, under one name (`main`), through
+  `RemoteLayouts` (client-link). The launcher waits up to 3 s for the
+  server's copy at its start; the browser starts with its local copy and
+  takes the server's when it comes. `choose_layout` (client-core) decides:
+  the server's copy wins unless it has none, or the user already changed the
+  local one; a failed load keeps both copies. Saves wait for the load, go
+  out a second after a change, and are sent again after a lost connection
+  until the server confirms them. The local file or browser storage stays as
+  a copy.
 
 ## Orders and risk
 
