@@ -161,7 +161,7 @@ jobs:
         with:
           tool: cargo-machete
       - run: cargo machete
-      - uses: crate-ci/typos@v1.51.1
+      - uses: crate-ci/typos@v1.52.0
       # The protocol: buf's style rules, and no change that would break a
       # client already in use (checked against main).
       - uses: bufbuild/buf-action@v1
