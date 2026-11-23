@@ -30,7 +30,7 @@ prost-build = "0.14.4"
 # A Protobuf compiler in Rust: no protoc to install, here or in CI.
 protox = "0.10.0"
 # CEL for viewport filters; without its date and time-zone support.
-cel = { version = "0.15.0", default-features = false, features = ["regex"] }
+cel = { version = "0.16.0", default-features = false, features = ["regex"] }
 arrow-array = "60.0.0"
 arrow-schema = "60.0.0"
 parquet = { version = "60.0.0", default-features = false, features = ["arrow", "zstd"] }
